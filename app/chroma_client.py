@@ -1,5 +1,6 @@
+import uuid
 import chromadb
-from chromadb.types import QueryResult
+from chromadb.api.types import QueryResult
 from typing import List, Dict, Any, Optional, Sequence
 
 class ChromaClient:
@@ -13,21 +14,23 @@ class ChromaClient:
         self.client = chromadb.PersistentClient(path=path)
         self.collection = self.client.get_or_create_collection(name=collection_name)
 
-    def store_chunks(self, chunks: List[str], embeddings: Sequence[List[float]], metadatas: Sequence[Dict[str, Any]]):
+    def store_chunks(self, chunks: List[str], embeddings: Sequence[List[float]], metadatas: Sequence[Dict[str, Any]]) -> List[str]:
         """
-        Stores chunked data, embeddings, and metadata in ChromaDB.
+        Stores chunked data, embeddings, and metadata in ChromaDB using unique IDs.
 
         :param chunks: A list of text chunks.
         :param embeddings: A list of embeddings corresponding to the chunks.
         :param metadatas: A list of metadata dictionaries for each chunk.
+        :return: A list of the generated unique IDs for the stored chunks.
         """
-        ids = [str(i) for i in range(len(chunks))]
+        ids = [str(uuid.uuid4()) for _ in chunks]
         self.collection.add(
-            embeddings=embeddings,
+            embeddings=embeddings, # type: ignore
             documents=chunks,
-            metadatas=metadatas,
+            metadatas=metadatas, # type: ignore
             ids=ids
         )
+        return ids
 
     def search(self, query_embedding: List[float], top_k: int = 5, filters: Optional[Dict[str, Any]] = None) -> QueryResult:
         """

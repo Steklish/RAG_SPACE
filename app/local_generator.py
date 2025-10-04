@@ -29,6 +29,7 @@ class LocalGenerator:
         self.model = model
         self.base = base
         self.url = f"{self.base}/v1/chat/completions"
+        print(f"{SUCCESS_COLOR}LocalGenerator instantiated successfully.{Colors.RESET}")
     
     def _payload(self, system_prompt: str, user: str, temperature: Optional[float], max_tokens: Optional[int]):
         body = {
@@ -196,7 +197,7 @@ if __name__ == "__main__":
                             base = os.getenv("LLAMA_SERVER_URL", "http://localhost:8080")) 
             
             
-            print("LocalGenerator instantiated successfully.")
+            
         except Exception as e:
             print(f"Error instantiating LocalGenerator: {e}")
             return
@@ -211,7 +212,7 @@ if __name__ == "__main__":
             generated_character = generator.generate(
                 pydantic_model=Character,
                 prompt=prompt,
-                language="English"
+                language="Russian",
             )
             
             # 5. Print the result
@@ -225,7 +226,7 @@ if __name__ == "__main__":
                 # Save the generated object to a JSON file
                 try:
                     with open("generated_character.json", "w", encoding="utf-8") as f:
-                        json.dump(generated_character.model_dump(), f, indent=2)
+                        json.dump(generated_character.model_dump(), f, indent=2, ensure_ascii=False)
                     print("\nSuccessfully saved generated character to 'generated_character.json'")
                     
                     # Save the generated object to a text file
@@ -243,12 +244,12 @@ if __name__ == "__main__":
                 try:
                     with open("llm_response.txt", "w", encoding="utf-8") as f:
                         f.write(str(generated_character))
-                    print("\nSuccessfully saved raw LLM response to 'llm_response.txt'")
+                    print(f"\n{SUCCESS_COLOR}Successfully saved raw LLM response to 'llm_response.txt'{Colors.RESET}")
                 except Exception as e:
-                    print(f"\nError saving raw LLM response to file: {e}")
+                    print(f"\n{ERROR_COLOR}Error saving raw LLM response to file: {e}{Colors.RESET}")
 
         except Exception as e:
-            print(f"\nAn error occurred during generation: {str(e).encode('utf-8')}")
+            print(f"\nAn error occurred during generation: {e}")
 
         print("\n--- Test Finished ---")
         

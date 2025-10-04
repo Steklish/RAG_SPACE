@@ -1,6 +1,8 @@
 import requests
 from typing import List
 
+from colors import SUCCESS_COLOR, Colors
+
 class EmbeddingClient:
     def __init__(self, base_url: str = "http://localhost:8080"):
         """
@@ -9,7 +11,8 @@ class EmbeddingClient:
         :param base_url: The base URL of the llama.cpp server.
         """
         self.base_url = base_url
-
+        print(f"{SUCCESS_COLOR}Embedding Server instantiated successfully.{Colors.RESET}")
+    
     def embed_text(self, text: str) -> List[float]:
         """
         Generates an embedding for the given text.
@@ -44,7 +47,7 @@ class EmbeddingClient:
 
 if __name__ == "__main__":
     # Example usage
-    client = EmbeddingClient(base_url="http://127.0.0.1:8080")
+    client = EmbeddingClient(base_url="http://127.0.0.1:8000")
     
     # --- Text to embed ---
     text_to_embed = "This is a test sentence for the embedding client."
@@ -60,10 +63,3 @@ if __name__ == "__main__":
         # print("Embedding vector (first 10 values):", embedding[:10]) 
     else:
         print("Failed to generate embedding.")
-
-    # --- Example of handling a failed request ---
-    print("\n--- Testing failed request ---")
-    client_invalid_url = EmbeddingClient(base_url="http://localhost:9999") # Invalid URL
-    embedding_failed = client_invalid_url.embed_text(text_to_embed)
-    if not embedding_failed:
-        print("Correctly handled failed request.")
