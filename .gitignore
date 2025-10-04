@@ -1,0 +1,71 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.pyd
+*.pyo
+
+# Distributions / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+.venv*/
+
+# Caches & tooling
+.pytest_cache/
+.mypy_cache/
+.pyre/
+pytestdebug.log
+.cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Editors / OS
+.vscode/
+.idea/
+*.code-workspace
+.DS_Store
+Thumbs.db
+
+# Logs & tmp
+logs/
+*.log
+tmp/
+*.tmp
+
+# --- Project data ---
+# Local persistent Chroma + raw/text storage should not be committed
+storage/
+!storage/.gitkeep
+
+# Large local models (GGUF)
+models/
+!models/.gitkeep
+
+# Uploads/samples (optional; uncomment if you create these dirs)
+# uploads/
+# samples/
+
+# Env files
+.env
+.env.*
+!.env.example
+
+# Docker / Compose overrides (optional; uncomment if used)
+# docker-compose.override.yml
+
+# Node (optional; if you add a web UI later)
+# node_modules/
+# npm-debug.log*
+# yarn-error.log*

@@ -1,0 +1,6 @@
+pydantic
+requests
+llama-cpp-python
+json-schema-to-gbnf
+chromadb
+google-generativeai
