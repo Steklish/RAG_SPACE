@@ -1,5 +1,6 @@
 import chromadb
-from typing import List, Dict, Any
+from chromadb.types import QueryResult
+from typing import List, Dict, Any, Optional, Sequence
 
 class ChromaClient:
     def __init__(self, path: str = "chroma_db", collection_name: str = "rag_collection"):
@@ -12,7 +13,7 @@ class ChromaClient:
         self.client = chromadb.PersistentClient(path=path)
         self.collection = self.client.get_or_create_collection(name=collection_name)
 
-    def store_chunks(self, chunks: List[str], embeddings: List[List[float]], metadatas: List[Dict[str, Any]]):
+    def store_chunks(self, chunks: List[str], embeddings: Sequence[List[float]], metadatas: Sequence[Dict[str, Any]]):
         """
         Stores chunked data, embeddings, and metadata in ChromaDB.
 
@@ -28,7 +29,7 @@ class ChromaClient:
             ids=ids
         )
 
-    def search(self, query_embedding: List[float], top_k: int = 5, filters: Dict[str, Any] = None) -> List[Dict[str, Any]]:
+    def search(self, query_embedding: List[float], top_k: int = 5, filters: Optional[Dict[str, Any]] = None) -> QueryResult:
         """
         Performs a similarity search in ChromaDB with optional filtering.
 
@@ -92,79 +93,5 @@ class ChromaClient:
 
         :return: A list of collection names.
         """
-        return self.client.list_collections()
+        return [c.name for c in self.client.list_collections()]
 
-if __name__ == "__main__":
-    # Example Usage
-    
-    # 1. Initialize ChromaClient
-    chroma_client = ChromaClient(path="chroma_storage", collection_name="my_rag_collection")
-
-    # 2. List collections
-    print(f"Available collections: {chroma_client.list_collections()}")
-
-    # 3. Prepare some sample data
-    sample_chunks = [
-        "The sky is blue.",
-        "The grass is green.",
-        "The sun is bright.",
-        "The moon is white."
-    ]
-    # Dummy embeddings (replace with actual embeddings in a real scenario)
-    sample_embeddings = [
-        [0.1, 0.2, 0.3, 0.4],
-        [0.5, 0.6, 0.7, 0.8],
-        [0.4, 0.3, 0.2, 0.1],
-        [0.8, 0.7, 0.6, 0.5]
-    ]
-    sample_metadatas = [
-        {"source": "nature_facts.txt", "topic": "sky"},
-        {"source": "nature_facts.txt", "topic": "plants"},
-        {"source": "nature_facts.txt", "topic": "sun"},
-        {"source": "space_facts.txt", "topic": "moon"}
-    ]
-
-    # 4. Store the data
-    chroma_client.store_chunks(sample_chunks, sample_embeddings, sample_metadatas)
-    print("\nStored sample data in ChromaDB.")
-
-    # 5. Get collection count
-    print(f"Number of items in collection: {chroma_client.get_collection_count()}")
-
-    # 6. Prepare a query
-    query_embedding = [0.1, 0.2, 0.3, 0.5] # A query embedding similar to "The sky is blue."
-
-    # 7. Perform a search without filters
-    search_results = chroma_client.search(query_embedding, top_k=2)
-    print("\nSearch results (without filters):")
-    print(search_results)
-
-    # 8. Perform a search with a filter
-    search_results_filtered = chroma_client.search(query_embedding, top_k=2, filters={"source": "space_facts.txt"})
-    print("\nSearch results (with filter for source='space_facts.txt'):")
-    print(search_results_filtered)
-
-    # 9. Update a chunk
-    chroma_client.update_chunk(
-        chunk_id="0",
-        chunk="The sky is a beautiful blue.",
-        embedding=[0.1, 0.2, 0.3, 0.45],
-        metadata={"source": "nature_facts.txt", "topic": "sky", "author": "John Doe"}
-    )
-    print("\nUpdated chunk with ID 0.")
-
-    # 10. Perform a search after update
-    search_results_after_update = chroma_client.search(query_embedding, top_k=2)
-    print("\nSearch results (after update):")
-    print(search_results_after_update)
-
-    # 11. Delete a chunk
-    chroma_client.delete_chunks(chunk_ids=["1"])
-    print("\nDeleted chunk with ID 1.")
-
-    # 12. Get collection count after deletion
-    print(f"Number of items in collection after deletion: {chroma_client.get_collection_count()}")
-
-    # 13. Delete the collection
-    chroma_client.delete_collection()
-    print("\nDeleted the collection.")

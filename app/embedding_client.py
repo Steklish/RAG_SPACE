@@ -25,9 +25,15 @@ class EmbeddingClient:
             )
             response.raise_for_status()
             
-            # The server returns a JSON object with an "embedding" key
             data = response.json()
-            return data.get("embedding", [])
+            try:
+                # The server returns a list containing a dictionary, 
+                # with the embedding nested inside a list.
+                return data[0]['embedding'][0]
+            except (IndexError, KeyError, TypeError) as e:
+                print(f"Failed to parse embedding from server response: {e}")
+                print(f"Received data: {data}")
+                return []
 
         except requests.exceptions.RequestException as e:
             print(f"An error occurred while communicating with the embedding server: {e}")

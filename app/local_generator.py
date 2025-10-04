@@ -4,7 +4,8 @@ import os
 import json
 import time
 from typing import Type, TypeVar, Optional
-from pydantic import BaseModel, ValidationError
+import httpx
+from pydantic import BaseModel, Field, ValidationError
 import requests
 
 from colors import *
@@ -12,6 +13,8 @@ from colors import *
 # A Generic Type Variable for our generator's return type
 T = TypeVar("T", bound=BaseModel)
 
+RETRIES = int(os.getenv("LLAMA_API_RETRIES", 3))
+TIMEOUT = int(os.getenv("LLAMA_API_TIMEOUT", 30))
 
 class LocalGenerator:
     """
@@ -19,27 +22,62 @@ class LocalGenerator:
     by instructing a local Llama server to return a JSON object.
     """
 
-    def __init__(self):
+    def __init__(self, model : str, base: str):
         """
         Initializes the generator with the local Llama server URL.
         """
-        self.server_url = os.getenv("LLAMA_SERVER_URL", "http://localhost:8080/completion")
+        self.model = model
+        self.base = base
+        self.url = f"{self.base}/v1/chat/completions"
+    
+    def _payload(self, system_prompt: str, user: str, temperature: Optional[float], max_tokens: Optional[int]):
+        body = {
+            "model": self.model,
+            "messages": [
+                {"role": "system", "content": system_prompt or ""},
+                {"role": "user", "content": user or ""},
+            ],
+        }
+        if temperature is not None:
+            body["temperature"] = temperature
+        if max_tokens is not None:
+            body["max_tokens"] = max_tokens
+        return body
 
-    def _clean_json_response(self, response_data: dict) -> str:
+        
+    def complete(self, system_prompt: str, user: str, temperature: Optional[float] = None, max_tokens: Optional[int] = None) -> str:
+        url = f"{self.base}/v1/chat/completions"
+        payload = self._payload(system_prompt, user, temperature, max_tokens)
+
+        last_exc = None
+        for attempt in range(RETRIES + 1):
+            try:
+                r = httpx.post(url, json=payload, timeout=TIMEOUT)
+                r.raise_for_status()
+                data = r.json()
+                # обычный OAI-ответ
+                msg = (data.get("choices") or [{}])[0].get("message", {})
+                text = msg.get("content")
+                # некоторые сборки кладут в choices[0].text
+                if text is None:
+                    text = (data.get("choices") or [{}])[0].get("text")
+                return text or ""
+            except Exception as e:
+                last_exc = e
+                time.sleep(min(2.0, 0.5 * attempt + 0.1))
+        raise last_exc # type: ignore
+
+        
+    def _clean_json_response(self, text_response: str) -> str:
         """
         Cleans the raw text response from the model to isolate the JSON object.
         """
-        # Check for JSON in the 'content' field first
-        text_response = response_data.get("content", "")
         start_index = text_response.find("{")
         if start_index != -1:
             end_index = text_response.rfind("}")
             if end_index != -1:
                 return text_response[start_index : end_index + 1]
 
-        # If not in 'content', check the 'prompt' field
-        text_response = response_data.get("prompt", "")
-        # Find the last occurrence of a JSON object
         last_brace_open = text_response.rfind("{")
         if last_brace_open != -1:
             # Find the corresponding closing brace
@@ -54,7 +92,7 @@ class LocalGenerator:
         pydantic_model: Type[T],
         prompt: Optional[str] = None,
         language: Optional[str] = None,
-        retries: int = 3,
+        retries: int = RETRIES,
         delay: int = 5,
     ) -> T:
         """
@@ -112,13 +150,17 @@ class LocalGenerator:
                 f"{HEADER_COLOR}Sending request to Local Llama Server{Colors.RESET} for: {ENTITY_COLOR}{pydantic_model.__name__}{Colors.RESET} (Language: {INFO_COLOR}{language or 'Default'}{Colors.RESET})"
             )
             try:
-                response = requests.post(self.server_url, headers=headers, json=data)
-                response.raise_for_status()
-                
-                response_json = response.json()
-                cleaned_response = self._clean_json_response(response_json)
+                print(f"{INFO_COLOR} url {self.url}:{Colors.RESET}")
+                # response = requests.post(self.url, headers=headers, json=data)
+                response_text = self.complete(system_prompt="",
+                    user=full_prompt,
+                    temperature=0.7,
+                    max_tokens=2048)
+                print(f"{SUCCESS_COLOR}Response received from Llama server.{Colors.RESET}")
+                cleaned_response = self._clean_json_response(response_text)
                 try:
                     parsed_data = json.loads(cleaned_response)
+                    print(parsed_data)
                 except json.JSONDecodeError as e:
                     print(f"{ERROR_COLOR}Error decoding JSON: {e}{Colors.RESET}")
                     print(f"{WARNING_COLOR}Cleaned Response that failed parsing:{Colors.RESET}")
@@ -127,15 +169,87 @@ class LocalGenerator:
                 return pydantic_model(**parsed_data)
             except (requests.exceptions.RequestException, json.JSONDecodeError, ValidationError, ValueError) as e:
                 print(
-                    f"{ERROR_COLOR}Error processing response (attempt {i + 1}/{retries}):{Colors.RESET} {e}"
+                    f"Error processing response (attempt {i + 1}/{retries}): {e}"
                 )
-                if 'response' in locals() and response.text:
-                    print(f"{WARNING_COLOR}Raw Response from API:{Colors.RESET}")
-                    print(response.text)
-                print(f"{Colors.DIM}{'─' * 30}{Colors.RESET}")
                 if i < retries - 1:
-                    print(f"{INFO_COLOR}Retrying in {delay} seconds...{Colors.RESET}")
+                    print(f"Retrying in {delay} seconds...")
                     time.sleep(delay)
                 else:
                     raise e
         raise Exception("Failed to generate object after multiple retries.")
+
+if __name__ == "__main__": 
+    
+    # 1. Define a simple Pydantic model
+    class Character(BaseModel):
+        name: str = Field(description="The character's name")
+        job: str = Field(description="The character's job")
+        description: str = Field(description="A brief description of the character")
+
+    def run_test():
+        print("--- Starting LocalGenerator Test ---")
+        
+        # 2. Instantiate the LocalGenerator
+        try:
+            generator = LocalGenerator(
+                            model="gemma-3n-E4B-it-Q4_0.gguf",
+                            base = os.getenv("LLAMA_SERVER_URL", "http://localhost:8080")) 
+            
+            
+            print("LocalGenerator instantiated successfully.")
+        except Exception as e:
+            print(f"Error instantiating LocalGenerator: {e}")
+            return
+
+        # 3. Define a prompt
+        prompt = "Create a fantasy character who is a clumsy wizard."
+        print(f"Test prompt: '{prompt}'")
+
+        # 4. Call the generate method
+        try:
+            print("Generating object...")
+            generated_character = generator.generate(
+                pydantic_model=Character,
+                prompt=prompt,
+                language="English"
+            )
+            
+            # 5. Print the result
+            print("\n--- Test Result ---")
+            if isinstance(generated_character, Character):
+                print("Successfully generated a Character object:")
+                print(f"  Name: {generated_character.name}")
+                print(f"  Job: {generated_character.job}")
+                print(f"  Description: {generated_character.description}")
+
+                # Save the generated object to a JSON file
+                try:
+                    with open("generated_character.json", "w", encoding="utf-8") as f:
+                        json.dump(generated_character.model_dump(), f, indent=2)
+                    print("\nSuccessfully saved generated character to 'generated_character.json'")
+                    
+                    # Save the generated object to a text file
+                    with open("llm_response.txt", "w", encoding="utf-8") as f:
+                        f.write(str(generated_character))
+                    print("Successfully saved LLM response to 'llm_response.txt'")
+                except Exception as e:
+                    print(f"\nError saving generated character to file: {e}")
+
+            else:
+                print("Generated object is not of the expected type 'Character'.")
+                # print(f"Received: {generated_character}")
+                
+                # Save the raw response to a text file
+                try:
+                    with open("llm_response.txt", "w", encoding="utf-8") as f:
+                        f.write(str(generated_character))
+                    print("\nSuccessfully saved raw LLM response to 'llm_response.txt'")
+                except Exception as e:
+                    print(f"\nError saving raw LLM response to file: {e}")
+
+        except Exception as e:
+            print(f"\nAn error occurred during generation: {str(e).encode('utf-8')}")
+
+        print("\n--- Test Finished ---")
+        
+    run_test()
