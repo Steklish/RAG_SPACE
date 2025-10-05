@@ -4,16 +4,23 @@ import chromadb
 from chromadb.api.types import QueryResult
 from typing import List, Dict, Any, Optional, Sequence
 
+from app.embedding_client import EmbeddingClient
+from app.ingest import extract_text_from_file, normalize_text, chunk_text
+
+
 class ChromaClient:
-    def __init__(self, path: str = os.getenv("CHROMA_PERSIST_DIR", "chroma_db"), collection_name: str = "rag_collection"):
+    def __init__(self, embedding_client: EmbeddingClient, path: str = os.getenv("CHROMA_PERSIST_DIR", "chroma_db"), collection_name: str = "rag_collection"):
         """
         Initializes the ChromaClient for persistent storage.
 
+        :param embedding_client: An instance of EmbeddingClient.
         :param path: The directory path for ChromaDB's persistent storage.
         :param collection_name: The name of the collection to use.
         """
+        self.embedding_client = embedding_client
         self.client = chromadb.PersistentClient(path=path)
         self.collection = self.client.get_or_create_collection(name=collection_name)
+        self.documents_collection = self.client.get_or_create_collection(name="documents_metadata")
 
     def store_chunks(self, chunks: List[str], embeddings: Sequence[List[float]], metadatas: Sequence[Dict[str, Any]]) -> List[str]:
         """
@@ -32,28 +39,6 @@ class ChromaClient:
             ids=ids
         )
         return ids
-
-    def search(self, query_embedding: List[float], top_k: int = 5, filters: Optional[Dict[str, Any]] = None) -> QueryResult:
-        """
-        Performs a similarity search in ChromaDB with optional filtering.
-
-        :param query_embedding: The embedding of the query text.
-        :param top_k: The number of top results to retrieve.
-        :param filters: A dictionary of metadata filters to apply.
-        :return: A list of search results.
-        """
-        if filters:
-            results = self.collection.query(
-                query_embeddings=[query_embedding],
-                n_results=top_k,
-                where=filters
-            )
-        else:
-            results = self.collection.query(
-                query_embeddings=[query_embedding],
-                n_results=top_k
-            )
-        return results
 
     def delete_collection(self):
         """Deletes the entire collection."""
@@ -99,3 +84,70 @@ class ChromaClient:
         """
         return [c.name for c in self.client.list_collections()]
 
+    def ingest_file(self, doc_id: str, raw_path: str, file_name: str, file_type: str, uploaded_at: str, chunk_size: int, chunk_overlap: int) -> int:
+        """
+        Handles the ingestion process for a single file.
+        """
+        text = extract_text_from_file(raw_path, file_type)
+        text = normalize_text(text)
+
+        txt_path = os.path.join(os.path.dirname(raw_path).replace("raw", "text"), f"{doc_id}.txt")
+        with open(txt_path, "w", encoding="utf-8") as f:
+            f.write(text)
+
+        chunks = chunk_text(text, chunk_size, chunk_overlap)
+        if not chunks:
+            raise ValueError("No chunks were created from the document.")
+
+        embeddings = self.embedding_client.embed_texts(chunks)
+        if not embeddings or len(embeddings) != len(chunks):
+            raise ValueError(f"Embeddings mismatch: chunks={len(chunks)} != embeddings={len(embeddings) if embeddings else 0}")
+
+        metadoc = {
+            "doc_id": doc_id,
+            "name": file_name,
+            "type": file_type,
+            "size": os.path.getsize(raw_path),
+            "uploadedAt": uploaded_at,
+        }
+        self.store_chunks(chunks, embeddings, [metadoc] * len(chunks))
+        return len(chunks)
+
+    def add_document(self, doc_id: str, doc_name_for_embedding: str, metadata: Dict[str, Any]):
+        """
+        Adds a single document's metadata to the collection.
+        The document's name is used to generate the embedding for searching.
+        """
+        embedding = self.embedding_client.embed_text(doc_name_for_embedding)
+        if embedding:
+            self.documents_collection.add(
+                ids=[doc_id],
+                embeddings=[embedding],
+                documents=[doc_name_for_embedding], # Store the name as the document content
+                metadatas=[metadata]
+            )
+
+    def search_documents(self, query_text: str, top_k: int = 5, filters: Optional[Dict[str, Any]] = None) -> QueryResult:
+        """
+        Searches for documents based on a query text.
+        """
+        query_embedding = self.embedding_client.embed_text(query_text)
+        if filters:
+            results = self.documents_collection.query(
+                query_embeddings=[query_embedding],
+                n_results=top_k,
+                where=filters
+            )
+        else:
+            results = self.documents_collection.query(
+                query_embeddings=[query_embedding],
+                n_results=top_k
+            )
+        return results
+
+
+    def delete_document(self, doc_id: str):
+        """
+        Deletes a document from the collection by its ID.
+        """
+        self.documents_collection.delete(ids=[doc_id])
