@@ -1,10 +1,11 @@
+import os
 import uuid
 import chromadb
 from chromadb.api.types import QueryResult
 from typing import List, Dict, Any, Optional, Sequence
 
 class ChromaClient:
-    def __init__(self, path: str = "chroma_db", collection_name: str = "rag_collection"):
+    def __init__(self, path: str = os.getenv("CHROMA_PERSIST_DIR", "chroma_db"), collection_name: str = "rag_collection"):
         """
         Initializes the ChromaClient for persistent storage.
 

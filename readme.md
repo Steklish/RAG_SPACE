@@ -2,6 +2,19 @@
 
 Это проект представляет собой простое приложение на основе архитектуры RAG (Retrieval-Augmented Generation), использующее локальный LLM-сервер, ChromaDB для векторного хранения и Pydantic для структурирования данных.
 
+## RUN
+
+Run chat model (example)
+```shell
+llama-server.exe --model D:\Duty\RR\models\gemma-3-1B-it-QAT-Q4_0.gguf --n_gpu_layers 999 --port 8080  --ctx-size 12000
+```
+
+Run embedding model (example)
+```shell
+llama-server --host 0.0.0.0 --port 11435 --model ..\..\..\RagFlow\models\embeddinggemma-300m-qat-Q8_0.gguf --embedding -c 2048 
+```
+
+
 ## Основные классы
 
 ### `app/schemas.py`

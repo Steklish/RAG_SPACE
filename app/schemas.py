@@ -1,13 +1,20 @@
+from datetime import datetime
 from pydantic import BaseModel, Field
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Literal, Optional
+
+StatusType = Literal["completed", "error"]
+
 
 class Document(BaseModel):
-    """
-    Represents a single document to be processed and stored.
-    """
-    content: str = Field(description="The full content of the document.")
-    metadata: Dict[str, Any] = Field(default_factory=dict, description="Metadata associated with the document, e.g., source, author.")
-
+    id: str
+    name: str
+    type: str
+    size: int
+    uploadedAt: datetime
+    status: StatusType
+    chunks: int
+    content: Optional[str] = None
+    metadata: Optional[Dict[str, Any]] = None
 class Chunk(BaseModel):
     """
     Represents a chunk of a document to be stored in the vector database.

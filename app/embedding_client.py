@@ -1,16 +1,17 @@
+import os
 import requests
 from typing import List
 
-from colors import SUCCESS_COLOR, Colors
+from app.colors import SUCCESS_COLOR, Colors
 
 class EmbeddingClient:
-    def __init__(self, base_url: str = "http://localhost:8080"):
+    def __init__(self, base: str = os.getenv("LLAMACPP_EMBED_BASE","http://localhost:8080")):
         """
         Initializes the EmbeddingClient.
 
-        :param base_url: The base URL of the llama.cpp server.
+        :param base: The base URL of the llama.cpp server.
         """
-        self.base_url = base_url
+        self.base = base
         print(f"{SUCCESS_COLOR}Embedding Server instantiated successfully.{Colors.RESET}")
     
     def embed_text(self, text: str) -> List[float]:
@@ -22,7 +23,7 @@ class EmbeddingClient:
         """
         try:
             response = requests.post(
-                f"{self.base_url}/embedding",
+                f"{self.base}/embedding",
                 json={"content": text},
                 headers={"Content-Type": "application/json"},
             )
@@ -45,9 +46,28 @@ class EmbeddingClient:
             print(f"An unexpected error occurred: {e}")
             return []
 
+    def embed_texts(self, texts: List[str]) -> List[List[float]]:
+        """
+        Generates embeddings for a list of texts.
+
+        :param texts: The list of texts to embed.
+        :return: A list of lists of floats representing the embeddings.
+        """
+        return [self.embed_text(text) for text in texts]
+
+    def _get_model_from_server(self):
+        try:
+            response = requests.get(f"{self.base}/models")
+            response.raise_for_status()
+            models = response.json().get("data", [])
+            return models[0]["id"][models[0]["id"].rfind("\\") + 1:]
+        except requests.exceptions.RequestException as e:
+            print(f"Error fetching models from server: {e}")
+            return []
+    
 if __name__ == "__main__":
     # Example usage
-    client = EmbeddingClient(base_url="http://127.0.0.1:8000")
+    client = EmbeddingClient()
     
     # --- Text to embed ---
     text_to_embed = "This is a test sentence for the embedding client."
@@ -60,6 +80,6 @@ if __name__ == "__main__":
     # --- Print results ---
     if embedding:
         print(f"Successfully generated embedding of dimension: {len(embedding)}")
-        # print("Embedding vector (first 10 values):", embedding[:10]) 
+        print("Embedding vector (first 10 values):", embedding[:10]) 
     else:
         print("Failed to generate embedding.")

@@ -1,20 +1,22 @@
 # local_generator.py
 
+from datetime import date
 import os
 import json
 import time
-from typing import Type, TypeVar, Optional
+from typing import List, Type, TypeVar, Optional
+import dotenv
 import httpx
 from pydantic import BaseModel, Field, ValidationError
 import requests
 
-from colors import *
+from app.colors import *
 
 # A Generic Type Variable for our generator's return type
 T = TypeVar("T", bound=BaseModel)
 
-RETRIES = int(os.getenv("LLAMA_API_RETRIES", 3))
-TIMEOUT = int(os.getenv("LLAMA_API_TIMEOUT", 30))
+RETRIES = int(os.getenv("LLAMACPP_MAX_RETRIES", 3))
+TIMEOUT = int(os.getenv("LLAMACPP_TIMEOUT_S", 300))
 
 class LocalGenerator:
     """
@@ -22,12 +24,12 @@ class LocalGenerator:
     by instructing a local Llama server to return a JSON object.
     """
 
-    def __init__(self, model : str, base: str):
+    def __init__(self, base: str):
         """
         Initializes the generator with the local Llama server URL.
         """
-        self.model = model
         self.base = base
+        self.model = self._get_model_from_server()
         self.url = f"{self.base}/v1/chat/completions"
         print(f"{SUCCESS_COLOR}LocalGenerator instantiated successfully.{Colors.RESET}")
     
@@ -45,15 +47,27 @@ class LocalGenerator:
             body["max_tokens"] = max_tokens
         return body
 
-        
+    
     def complete(self, system_prompt: str, user: str, temperature: Optional[float] = None, max_tokens: Optional[int] = None) -> str:
-        url = f"{self.base}/v1/chat/completions"
-        payload = self._payload(system_prompt, user, temperature, max_tokens)
+        """Uses LLM to generate a string
 
+        Args:
+            system_prompt (str): system prompt 
+            user (str): user prompt
+            temperature (Optional[float], optional): LLM temperature. Defaults to None.
+            max_tokens (Optional[int], optional): LLM max tokens for generation. Defaults to None.
+
+        Raises:
+            last_exc
+
+        Returns:
+            str: generated string
+        """
+        payload = self._payload(system_prompt, user, temperature, max_tokens)
         last_exc = None
         for attempt in range(RETRIES + 1):
             try:
-                r = httpx.post(url, json=payload, timeout=TIMEOUT)
+                r = httpx.post(self.url, json=payload, timeout=TIMEOUT)
                 r.raise_for_status()
                 data = r.json()
                 # обычный OAI-ответ
@@ -178,14 +192,39 @@ class LocalGenerator:
                 else:
                     raise e
         raise Exception("Failed to generate object after multiple retries.")
+    
+    def get_model_info(self):
+        return {
+            "model": self.model,
+            "base": self.base,
+            "url": self.url
+        }
+        
+    def _get_model_from_server(self):
+        try:
+            response = requests.get(f"{self.base}/models")
+            response.raise_for_status()
+            models = response.json().get("data", [])
+            return models[0]["id"][models[0]["id"].rfind("\\") + 1:]
+        except requests.exceptions.RequestException as e:
+            print(f"Error fetching models from server: {e}")
+            return []
 
 if __name__ == "__main__": 
-    
+    dotenv.load_dotenv(override=True)  # Load environment variables from a .env file if present
     # 1. Define a simple Pydantic model
+    print(os.getenv("LLAMACPP_CHAT_BASE"))
     class Character(BaseModel):
         name: str = Field(description="The character's name")
         job: str = Field(description="The character's job")
         description: str = Field(description="A brief description of the character")
+        level: int = Field(..., ge=1, le=100, description="Character level from 1 to 100")
+        skills: List[str] = Field(default_factory=list, description="List of character skills")
+        is_active: bool = Field(default=True, description="Is the character active?")
+        birthdate: Optional[date] = Field(None, description="Birthdate of the character")
+        attributes: dict = Field(default_factory=dict, description="Character attributes with values")
+        
+        
 
     def run_test():
         print("--- Starting LocalGenerator Test ---")
@@ -193,8 +232,7 @@ if __name__ == "__main__":
         # 2. Instantiate the LocalGenerator
         try:
             generator = LocalGenerator(
-                            model="gemma-3n-E4B-it-Q4_0.gguf",
-                            base = os.getenv("LLAMA_SERVER_URL", "http://localhost:8080")) 
+                            base = os.getenv("LLAMACPP_CHAT_BASE", "http://localhost:8080")) 
             
             
             

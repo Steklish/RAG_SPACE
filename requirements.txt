@@ -1,6 +1,12 @@
 pydantic
 requests
 llama-cpp-python
-json-schema-to-gbnf
+httpx
+fastapi
+uvicorn
+python-dotenv
 chromadb
-google-generativeai
+tiktoken
+Unstructured
+PyMuPDF
+pdfplumber
