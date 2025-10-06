@@ -85,6 +85,10 @@ class Thread(BaseModel):
     
 class UserMessage(BaseModel):
     content: str
+
+class ThreadName(BaseModel):
+    name: str
+
     
 class DocumentId(BaseModel):
     document_id: str

@@ -1,0 +1,424 @@
+:root {
+  --background-color: #1c1c1e;
+  --text-color: #e1e1e0;
+  --primary-color: #a9967f;
+  --border-color: #3a3a3c;
+  --panel-background: #2a2a2c;
+  --input-background: #3a3a3c;
+  --hover-color: #4a4a4c;
+  --message-user-background: #3a3a3c;
+  --message-bot-background: #2a2a2c;
+}
+
+body {
+  background-color: var(--background-color);
+  color: var(--text-color);
+  font-family: 'Inter', sans-serif;
+  margin: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.app-container {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  padding: 1rem;
+  box-sizing: border-box;
+}
+
+.threads-panel, .chat-panel, .document-management-panel {
+  background-color: var(--panel-background);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: box-shadow 0.3s ease;
+}
+
+.threads-panel:focus-within, .chat-panel:focus-within, .document-management-panel:focus-within {
+  box-shadow: 0 0 0 2px var(--primary-color);
+}
+
+h2 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-color);
+  margin-top: 0;
+  margin-bottom: 1.5rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.message-list {
+  flex-grow: 1;
+  overflow-y: auto;
+  padding: 1rem 0.5rem;
+}
+
+.message {
+  margin-bottom: 1.5rem;
+  padding: 1rem 1.5rem;
+  border-radius: 1.5rem;
+  max-width: 85%;
+  line-height: 1.6;
+  border: 1px solid var(--border-color);
+}
+
+.message.user {
+  background-color: var(--message-user-background);
+  color: var(--text-color);
+  align-self: flex-end;
+  margin-left: auto;
+  border-bottom-right-radius: 0.5rem;
+}
+
+.message.bot {
+  background-color: var(--message-bot-background);
+  color: var(--text-color);
+  align-self: flex-start;
+  border-bottom-left-radius: 0.5rem;
+}
+
+.chat-input-form {
+  display: flex;
+  padding: 1.5rem 0 0;
+  border-top: 1px solid var(--border-color);
+}
+
+.chat-input {
+  flex-grow: 1;
+  background-color: var(--input-background);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+  border-radius: 2rem;
+  padding: 0.75rem 1.25rem;
+  font-size: 1rem;
+  transition: background-color 0.3s, border-color 0.3s;
+}
+
+.chat-input:focus {
+  outline: none;
+  background-color: var(--panel-background);
+  border-color: var(--primary-color);
+}
+
+.send-button {
+  border: none;
+  background-color: var(--primary-color);
+  color: white;
+  border-radius: 2rem;
+  padding: 0.75rem 1.5rem;
+  margin-left: 1rem;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background-color 0.3s;
+}
+
+.send-button:hover {
+  background-color: #5a32a3;
+}
+
+.threads-panel ul, .document-list {
+  list-style-type: none;
+  padding: 0;
+  margin: 0;
+  overflow-y: auto;
+  flex-grow: 1;
+}
+
+.threads-panel li, .document-list li {
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  margin-bottom: 0.5rem;
+  cursor: pointer;
+  transition: background-color 0.3s, color 0.3s;
+  font-weight: 500;
+}
+
+.threads-panel li:hover, .document-list li:hover {
+  background-color: var(--hover-color);
+}
+
+.threads-panel li.active {
+  background-color: var(--primary-color);
+  color: white;
+}
+
+.gutter {
+  background-color: var(--background-color);
+  background-repeat: no-repeat;
+  background-position: 50%;
+  z-index: 10;
+}
+
+.gutter.gutter-horizontal {
+  cursor: col-resize;
+}
+
+.split {
+  display: flex;
+  flex-direction: row;
+  gap: 1rem;
+}
+
+/* New Styles for UI Polish */
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem; /* Adjusted from h2 margin */
+}
+
+.panel-header h2 {
+  margin-bottom: 0; /* h2 no longer needs bottom margin */
+}
+
+.new-thread-btn {
+  background-color: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  font-size: 1.5rem;
+  line-height: 32px;
+  text-align: center;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.new-thread-btn:hover {
+  background-color: #5a32a3;
+}
+
+.empty-state {
+  color: #888;
+  text-align: center;
+  padding: 1rem;
+}
+
+.empty-state.centered {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+}
+
+
+/* Tabs */
+.tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.tabs button {
+  padding: 0.75rem 1rem;
+  border: none;
+  background-color: transparent;
+  color: var(--text-color);
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 500;
+  border-bottom: 2px solid transparent;
+  transition: border-color 0.3s, color 0.3s;
+}
+
+.tabs button.active {
+  color: var(--primary-color);
+  border-bottom-color: var(--primary-color);
+}
+
+/* Dropzone */
+.dropzone {
+  border: 2px dashed var(--border-color);
+  border-radius: 8px;
+  padding: 2rem;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.3s, background-color 0.3s;
+  margin-top: 1rem;
+}
+
+.dropzone.active {
+  border-color: var(--primary-color);
+  background-color: var(--hover-color);
+}
+
+.dropzone p {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--text-color);
+}
+
+/* File List Actions */
+.document-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  margin-bottom: 0.5rem;
+  transition: background-color 0.3s;
+}
+
+.document-list li:hover {
+  background-color: var(--hover-color);
+}
+
+.document-list li .file-actions {
+  display: flex;
+  gap: 0.5rem;
+  visibility: hidden; /* Hide actions by default */
+}
+
+.document-list li:hover .file-actions {
+  visibility: visible; /* Show on hover */
+}
+
+.icon-button {
+  background: none;
+  border: none;
+  color: var(--text-color);
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: 4px;
+  transition: background-color 0.3s, color 0.3s;
+}
+
+.icon-button:hover {
+  background-color: var(--border-color);
+  color: var(--primary-color);
+}
+
+.icon-button:disabled {
+  color: #555;
+  cursor: not-allowed;
+}
+
+/* Custom Scrollbar for Message List */
+.message-list::-webkit-scrollbar,
+.threads-panel ul::-webkit-scrollbar,
+.document-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.message-list::-webkit-scrollbar-track,
+.threads-panel ul::-webkit-scrollbar-track,
+.document-list::-webkit-scrollbar-track {
+  background: var(--panel-background);
+}
+
+.message-list::-webkit-scrollbar-thumb,
+.threads-panel ul::-webkit-scrollbar-thumb,
+.document-list::-webkit-scrollbar-thumb {
+  background-color: var(--input-background);
+  border-radius: 10px;
+  border: 2px solid var(--panel-background);
+}
+
+.message-list::-webkit-scrollbar-thumb:hover,
+.threads-panel ul::-webkit-scrollbar-thumb:hover,
+.document-list::-webkit-scrollbar-thumb:hover {
+  background-color: var(--hover-color);
+}
+
+/* Thread Renaming */
+.threads-panel li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.threads-panel li .thread-actions {
+  visibility: hidden;
+}
+
+.threads-panel li:hover .thread-actions {
+  visibility: visible;
+}
+
+.rename-input {
+  width: 100%;
+  background-color: var(--input-background);
+  border: 1px solid var(--primary-color);
+  border-radius: 4px;
+  color: var(--text-color);
+  padding: 0.25rem 0.5rem;
+  font-family: inherit;
+  font-size: inherit;
+}
+
+.rename-input:focus {
+  outline: none;
+}
+
+.settings-panel {
+  background-color: var(--panel-background);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.left-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.model-list-container {
+  margin-top: 1rem;
+}
+
+.model-list {
+  list-style-type: none;
+  padding: 0;
+  margin: 0;
+}
+
+.model-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.model-name {
+  font-weight: 500;
+}
+
+.model-type {
+  color: #888;
+}
+
+.setting-item {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 1rem;
+}
+
+.setting-item label {
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+}
+
+.setting-item select {
+  background-color: var(--input-background);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 0.5rem;
+  font-size: 1rem;
+}
+
+
+
+

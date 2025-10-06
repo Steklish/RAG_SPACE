@@ -36,9 +36,12 @@ class ThreadStore:
         if not os.path.exists(thread_path):
             return None
         
-        with open(thread_path, 'r') as f:
+        with open(thread_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
             return Thread(**data)
+
+    def get_thread_details(self, thread_id: str) -> Optional[Thread]:
+        return self.get_thread(thread_id)
 
     def save_thread(self, thread: Thread):
         thread_path = self._get_thread_path(thread.id)
@@ -60,6 +63,14 @@ class ThreadStore:
             raise ValueError(f"Thread with id {thread_id} not found.")
             
         thread.metadata.update(metadata)
+        self.save_thread(thread)
+
+    def rename_thread(self, thread_id: str, new_name: str):
+        thread = self.get_thread(thread_id)
+        if not thread:
+            raise ValueError(f"Thread with id {thread_id} not found.")
+        
+        thread.name = new_name
         self.save_thread(thread)
 
     def get_all_threads(self) -> List[Dict[str, Any]]:

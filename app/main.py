@@ -65,6 +65,14 @@ thread_store = ThreadStore()
 agent = Agent(llm_client, chroma_client, thread_store)
 
 
+@app.get("/api/chat_model")
+def get_chat_model_handler():
+    return safe_json(llm_client.get_model_info())
+
+@app.get("/api/embedding_model")
+def get_embedding_model_handler():
+    return safe_json({"model": embed_client._get_model_from_server()})
+
 @app.get("/api/get_loaded_models")
 def get_loaded_models():
     """
@@ -174,6 +182,30 @@ def get_document(doc_id: str):
         raise HTTPException(status_code=404, detail="Document not found")
     return safe_json(document)
 
+@app.delete("/api/documents/{doc_id}")
+def delete_document(doc_id: str):
+    """
+    Deletes a document by its ID.
+    """
+    document = chroma_client.get_document(doc_id)
+    if not document:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    # Construct the path to the raw file and delete it
+    try:
+        ext = os.path.splitext(document["name"])[1].lower().lstrip(".")
+        raw_path = os.path.join(STORAGE_RAW_DIR, f"{doc_id}.{ext}")
+        if os.path.exists(raw_path):
+            os.remove(raw_path)
+    except Exception as e:
+        # Log the error but proceed to delete from Chroma
+        print(f"Error deleting raw file {raw_path}: {e}")
+
+    # Delete from ChromaDB
+    chroma_client.delete_document(doc_id)
+    
+    return safe_json({"status": "success", "message": f"Document {doc_id} deleted."})
+
 @app.post("/api/query/chunks", response_model=List[ChunkQueryResult])
 def query_chunks(query: ChunkQuery):
     """
@@ -202,10 +234,25 @@ def get_thread(thread_id: str):
         raise HTTPException(status_code=404, detail="Thread not found")
     return safe_json(thread.dict())
 
+@app.get("/api/threads/{thread_id}/details")
+def get_thread_details(thread_id: str):
+    thread = thread_store.get_thread_details(thread_id)
+    if not thread:
+        raise HTTPException(status_code=404, detail="Thread not found")
+    return safe_json(thread.dict())
+
 @app.put("/api/threads/{thread_id}/metadata")
 async def update_thread_metadata(thread_id: str, metadata: Dict[str, Any]):
     try:
         thread_store.update_metadata(thread_id, metadata)
+        return safe_json({"status": "success"})
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+@app.put("/api/threads/{thread_id}/rename")
+def rename_thread(thread_id: str, new_name: ThreadName):
+    try:
+        thread_store.rename_thread(thread_id, new_name.name)
         return safe_json({"status": "success"})
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
