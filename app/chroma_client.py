@@ -31,6 +31,8 @@ class ChromaClient:
         :param metadatas: A list of metadata dictionaries for each chunk.
         :return: A list of the generated unique IDs for the stored chunks.
         """
+        # print(type(embeddings).__name__)
+        # print(embeddings)
         ids = [str(uuid.uuid4()) for _ in chunks]
         self.collection.add(
             embeddings=embeddings, # type: ignore
@@ -38,6 +40,7 @@ class ChromaClient:
             metadatas=metadatas, # type: ignore
             ids=ids
         )
+        # print("stored chunks")
         return ids
 
     def delete_collection(self):
@@ -52,21 +55,6 @@ class ChromaClient:
         """
         return self.collection.count()
 
-    def update_chunk(self, chunk_id: str, chunk: str, embedding: List[float], metadata: Dict[str, Any]):
-        """
-        Updates an existing chunk in the collection.
-
-        :param chunk_id: The ID of the chunk to update.
-        :param chunk: The new text chunk.
-        :param embedding: The new embedding for the chunk.
-        :param metadata: The new metadata for the chunk.
-        """
-        self.collection.update(
-            ids=[chunk_id],
-            embeddings=[embedding],
-            documents=[chunk],
-            metadatas=[metadata]
-        )
 
     def delete_chunks(self, chunk_ids: List[str]):
         """
@@ -91,10 +79,6 @@ class ChromaClient:
         text = extract_text_from_file(raw_path, file_type)
         text = normalize_text(text)
 
-        txt_path = os.path.join(os.path.dirname(raw_path).replace("raw", "text"), f"{doc_id}.txt")
-        with open(txt_path, "w", encoding="utf-8") as f:
-            f.write(text)
-
         chunks = chunk_text(text, chunk_size, chunk_overlap)
         if not chunks:
             raise ValueError("No chunks were created from the document.")
@@ -111,6 +95,7 @@ class ChromaClient:
             "uploadedAt": uploaded_at,
         }
         self.store_chunks(chunks, embeddings, [metadoc] * len(chunks))
+        self.add_document(doc_id, file_name, metadoc)
         return len(chunks)
 
     def add_document(self, doc_id: str, doc_name_for_embedding: str, metadata: Dict[str, Any]):
@@ -126,6 +111,7 @@ class ChromaClient:
                 documents=[doc_name_for_embedding], # Store the name as the document content
                 metadatas=[metadata]
             )
+
 
     def search_documents(self, query_text: str, top_k: int = 5, filters: Optional[Dict[str, Any]] = None) -> QueryResult:
         """
@@ -145,9 +131,104 @@ class ChromaClient:
             )
         return results
 
+    def _get_collections(self):
+        return [c.name for c in self.client.list_collections()]
 
     def delete_document(self, doc_id: str):
         """
-        Deletes a document from the collection by its ID.
+        Deletes a document and all its associated chunks from the collections.
         """
+        # Delete the document metadata
         self.documents_collection.delete(ids=[doc_id])
+
+        # Delete all chunks associated with the document
+        chunk_ids_to_delete = []
+        results = self.collection.get(where={"doc_id": doc_id})
+        if results and results['ids']:
+            chunk_ids_to_delete.extend(results['ids'])
+        
+        if chunk_ids_to_delete:
+            self.delete_chunks(chunk_ids_to_delete)
+
+    def get_all_documents(self) -> List[Dict[str, Any]]:
+        """
+        Retrieves all documents from the documents_collection.
+        """
+        print(self._get_collections())
+        documents = self.documents_collection.get()
+        # Reconstruct the document format
+        results = []
+        if documents:
+            for i, doc_id in enumerate(documents['ids']):
+                metadata = documents['metadatas'][i] # type: ignore
+                results.append({
+                    "id": doc_id,
+                    "name": metadata.get("name"),
+                    "type": metadata.get("type"),
+                    "size": metadata.get("size"),
+                    "uploadedAt": metadata.get("uploadedAt"),
+                    "status": "completed",  # Assuming all stored docs are complete
+                    "chunks": 0, # This would require querying the other collection, maybe not needed for just a list
+                })
+        return results
+
+    def get_document(self, doc_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Retrieves a single document from the documents_collection by its ID.
+        """
+        document = self.documents_collection.get(ids=[doc_id])
+        if document and document['ids']:
+            metadata = document['metadatas'][0] # type: ignore
+            return {
+                "id": document['ids'][0],
+                "name": metadata.get("name"),
+                "type": metadata.get("type"),
+                "size": metadata.get("size"),
+                "uploadedAt": metadata.get("uploadedAt"),
+                "status": "completed",
+                "chunks": 0,
+            }
+        return None
+
+    def get_document_by_name(self, doc_name: str) -> Optional[Dict[str, Any]]:
+        """
+        Retrieves a single document from the documents_collection by its name.
+        """
+        documents = self.documents_collection.get(where={"name": doc_name})
+        if documents and documents['ids']:
+            metadata = documents['metadatas'][0] # type: ignore
+            return {
+                "id": documents['ids'][0],
+                "name": metadata.get("name"),
+                "type": metadata.get("type"),
+                "size": metadata.get("size"),
+                "uploadedAt": metadata.get("uploadedAt"),
+                "status": "completed",
+                "chunks": 0,
+            }
+        return None
+
+    def query_chunks(self, query_text: str, top_k: int = 5) -> List[Dict[str, Any]]:
+        """
+        Searches for chunks based on a query text.
+        """
+        query_embedding = self.embedding_client.embed_text(query_text)
+        if not query_embedding:
+            return []
+        
+        results = self.collection.query(
+            query_embeddings=[query_embedding],
+            n_results=top_k
+        )
+        
+        formatted_results = []
+        if results and results['ids'] and len(results['ids']) > 0:
+            for i, chunk_id in enumerate(results['ids'][0]):
+                formatted_results.append({
+                    "id": chunk_id,
+                    "text": results['documents'][0][i], # type: ignore
+                    "metadata": results['metadatas'][0][i], # type: ignore
+                    "distance": results['distances'][0][i] # type: ignore
+                })
+        
+        return formatted_results

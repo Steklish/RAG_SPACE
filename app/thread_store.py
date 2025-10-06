@@ -42,8 +42,8 @@ class ThreadStore:
 
     def save_thread(self, thread: Thread):
         thread_path = self._get_thread_path(thread.id)
-        with open(thread_path, 'w') as f:
-            json.dump(thread.dict(), f, indent=2, default=str)
+        with open(thread_path, 'w', encoding='utf-8') as f:
+            json.dump(thread.dict(), f, indent=2, default=str, ensure_ascii=False)
 
     def add_message(self, thread_id: str, message: str):
         thread = self.get_thread(thread_id)
@@ -79,3 +79,20 @@ class ThreadStore:
         # Sort threads by creation date, newest first
         threads.sort(key=lambda x: x.get("created_at"), reverse=True)
         return threads
+    def add_document_to_thread(self, thread_id: str, document_id: str):
+        thread = self.get_thread(thread_id)
+        if not thread:
+            raise ValueError(f"Thread with id {thread_id} not found.")
+        
+        if document_id not in thread.document_ids:
+            thread.document_ids.append(document_id)
+            self.save_thread(thread)
+
+    def remove_document_from_thread(self, thread_id: str, document_id: str):
+        thread = self.get_thread(thread_id)
+        if not thread:
+            raise ValueError(f"Thread with id {thread_id} not found.")
+        
+        if document_id in thread.document_ids:
+            thread.document_ids.remove(document_id)
+            self.save_thread(thread)

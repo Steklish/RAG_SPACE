@@ -1,82 +1,71 @@
-# Run chat model (example)
-```shell
-llama-server.exe --model D:\Duty\RR\models\gemma-3-1B-it-QAT-Q4_0.gguf --n_gpu_layers 999 --port 8080  --ctx-size 12000
-```
+# RAG AI-приложение
 
-Run embedding model (example)
-```shell
-llama-server --host 0.0.0.0 --port 11435 --model ..\..\..\RagFlow\models\embeddinggemma-300m-qat-Q8_0.gguf --embedding -c 2048 
-```
+Это проект простого RAG-приложения (Retrieval-Augmented Generation), которое использует локальный LLM-сервер, ChromaDB для векторного хранения, бэкенд на FastAPI и пользовательский интерфейс на React.
 
-# RAG AI Application
+## Основные компоненты
 
-This project is a simple Retrieval-Augmented Generation (RAG) application that uses a local LLM server, ChromaDB for vector storage, a FastAPI backend, and a React-based user interface.
+Приложение разделено на бэкенд на Python, отвечающий за логику ИИ, и фронтенд на React для взаимодействия с пользователем.
 
-## Core Components
+### Бэкенд (`app/`)
 
-The application is divided into a Python backend responsible for the AI logic and a React frontend for user interaction.
+-   **`main.py`**: Сервер FastAPI, предоставляющий эндпоинты для загрузки документов, управления чат-тредами и взаимодействия с AI-агентом.
+-   **`agent.py`**: Содержит класс `Agent`, который управляет определением намерений пользователя, извлечением документов и логикой генерации ответов.
+-   **`chroma_client.py`**: Клиент для ChromaDB, который управляет двумя коллекциями: одна для текстовых чанков (`rag_collection`), а другая для метаданных документов (`documents_metadata`). Он также обрабатывает загрузку файлов, включая извлечение текста и его разделение на чанки.
+-   **`embedding_client.py`**: Клиент для генерации текстовых эмбеддингов с использованием локального сервера эмбеддинг-модели.
+-   **`local_generator.py`**: Клиент для генерации текстовых ответов от локального сервера чат-модели.
+-   **`thread_store.py`**: Управляет тредами бесед, сохраняя и извлекая их из локальной файловой системы.
+-   **`schemas.py`**: Определяет модели Pydantic, используемые для валидации и структурирования данных во всем бэкенде.
 
-### Backend (`app/`)
+### Фронтенд (`UI/`)
 
--   **`main.py`**: A FastAPI server that exposes endpoints for uploading documents, managing chat threads, and interacting with the AI agent.
--   **`agent.py`**: Contains the `Agent` class, which orchestrates the user intent detection, document retrieval, and response generation logic.
--   **`chroma_client.py`**: A client for ChromaDB that manages two collections: one for text chunks (`rag_collection`) and another for document metadata (`documents_metadata`). It also handles file ingestion, including text extraction and chunking.
--   **`embedding_client.py`**: A client for generating text embeddings using a local embedding model server.
--   **`local_generator.py`**: A client for generating text responses from a local chat model server.
--   **`thread_store.py`**: Manages conversation threads by storing and retrieving them from the local filesystem.
--   **`schemas.py`**: Defines the Pydantic models used for data validation and structuring throughout the backend.
+-   Приложение на React, созданное с помощью Vite.
+-   Использует Material-UI для компонентов и стилизации.
+-   Имеет вкладочный интерфейс для "Чата" и "Настроек".
+-   Включает изменяемые по размеру панели для гибкой компоновки пользовательского интерфейса.
 
-### Frontend (`UI/`)
+## Как это работает
 
--   A React application built with Vite.
--   Uses Material-UI for components and styling.
--   Features a tabbed interface for "Chat" and "Settings".
--   Includes resizable panels for a flexible user layout.
+1.  **Загрузка документов**: Пользователи могут загружать документы через пользовательский интерфейс. Бэкенд сохраняет файл, извлекает из него текст, разбивает его на чанки, генерирует эмбеддинги для каждого чанка и сохраняет их в ChromaDB. Метаданные документа хранятся в отдельной коллекции.
+2.  **Взаимодействие в чате**: Когда пользователь отправляет сообщение, `Agent` сначала определяет намерение пользователя и необходимость извлечения информации.
+3.  **Извлечение**: Если извлечение необходимо, `Agent` использует `ChromaClient` для поиска релевантных текстовых чанков из проиндексированных документов.
+4.  **Генерация**: Извлеченные чанки и история беседы передаются в `LocalGenerator`, который использует локальный LLM для генерации ответа.
+5.  **Управление беседой**: `ThreadStore` отслеживает историю беседы для каждой сессии чата.
 
-## How It Works
+## Запуск приложения
 
-1.  **Document Ingestion**: Users can upload documents through the UI. The backend saves the file, extracts its text, splits it into chunks, generates embeddings for each chunk, and stores them in ChromaDB. Document metadata is stored in a separate collection.
-2.  **Chat Interaction**: When a user sends a message, the `Agent` first determines the user's intent and whether information retrieval is necessary.
-3.  **Retrieval**: If retrieval is needed, the `Agent` uses the `ChromaClient` to search for relevant text chunks from the indexed documents.
-4.  **Generation**: The retrieved chunks and conversation history are passed to the `LocalGenerator`, which uses the local LLM to generate a response.
-5.  **Conversation Management**: The `ThreadStore` keeps track of the conversation history for each chat session.
+Для запуска этого приложения необходимо запустить локальные серверы моделей, бэкенд FastAPI и фронтенд React.
 
-## Running the Application
+### 1. Запуск серверов моделей
 
-To run this application, you need to start the local model servers, the FastAPI backend, and the React frontend.
+Вам понадобятся два отдельных экземпляра `llama-server`: один для чат-модели и один для эмбеддинг-модели.
 
-### 1. Run Model Servers
-
-You need two separate `llama-server` instances: one for the chat model and one for the embedding model.
-
-**Run Chat Model (Example):**
+**Запуск чат-модели (пример):**
 ```shell
 llama-server.exe --model D:\Duty\RR\models\gemma-3-1B-it-QAT-Q4_0.gguf --n_gpu_layers 999 --port 11434 --ctx-size 12000
 ```
 
-**Run Embedding Model (Example):**
+**Запуск эмбеддинг-модели (пример):**
 ```shell
-llama-server --host 0.0.0.0 --port 11435 --model ..\..\..\RagFlow\models\embeddinggemma-300m-qat-Q8_0.gguf --embedding -c 2048
+llama-server --port 11435 --model D:\Duty\RR\models\embeddinggemma-300m-qat-Q8_0.gguf --embedding -c 2048 -b 2048 -ub 1024
 ```
-*Note: Adjust the model paths and parameters as needed.*
+*Примечание: При необходимости измените пути к моделям и параметры.*
 
-### 2. Run the Backend Server
+### 2. Запуск бэкенд-сервера
 
-Navigate to the project's root directory and run the FastAPI application using `uvicorn`.
+Перейдите в корневой каталог проекта и запустите приложение FastAPI с помощью `uvicorn`.
 
 ```shell
-cd D:\Duty\RR
-uvicorn app.main:app --reload
+python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8080 
 ```
-The backend will be available at `http://127.0.0.1:8000`.
+Бэкенд будет доступен по адресу `http://127.0.0.1:8080`.
 
-### 3. Run the Frontend UI
+### 3. Запуск фронтенд-интерфейса
 
-In a separate terminal, navigate to the `UI` directory, install the dependencies, and start the Vite development server.
+В отдельном терминале перейдите в каталог `UI`, установите зависимости и запустите сервер разработки Vite.
 
 ```shell
-cd D:\Duty\RR\UI
+cd UI
 npm install
 npm run dev
 ```
-The user interface will be available at `http://localhost:5173` (or another port if 5173 is in use).
+Пользовательский интерфейс будет доступен по адресу `http://localhost:5173` (или другому порту, если 5173 занят).

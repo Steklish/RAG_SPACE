@@ -21,6 +21,7 @@ class EmbeddingClient:
         :param text: The text to embed.
         :return: A list of floats representing the embedding.
         """
+        print(f"Embedding text: {text[:30]}...")  # Debug print
         try:
             response = requests.post(
                 f"{self.base}/embedding",
@@ -46,14 +47,42 @@ class EmbeddingClient:
             print(f"An unexpected error occurred: {e}")
             return []
 
-    def embed_texts(self, texts: List[str]) -> List[List[float]]:
+    def embed_texts(self, texts: List[str], batch_size: int = 20) -> List[List[float]]:
         """
-        Generates embeddings for a list of texts.
+        Generates embeddings for a list of texts in batches.
 
         :param texts: The list of texts to embed.
+        :param batch_size: The number of texts to process in each batch.
         :return: A list of lists of floats representing the embeddings.
         """
-        return [self.embed_text(text) for text in texts]
+        print(f"Embedding texts: {[text[:30] + '... len ->' + str(len(text)) for text in texts[:3]]}...")  # Debug print
+        all_embeddings = []
+        for i in range(0, len(texts), batch_size):
+            batch = texts[i:i + batch_size]
+            
+            try:
+                response = requests.post(
+                    f"{self.base}/embedding",
+                    json={"content": batch},
+                    headers={"Content-Type": "application/json"},
+                )
+                response.raise_for_status()
+                
+                data = response.json()
+                
+                # Assuming the server returns a list of embedding results for a batch
+                batch_embeddings = [item['embedding'][0] for item in data]
+                all_embeddings.extend(batch_embeddings)
+
+            except requests.exceptions.RequestException as e:
+                print(f"An error occurred while communicating with the embedding server: {e}")
+                # Pad with empty embeddings for the failed batch
+                all_embeddings.extend([[]] * len(batch))
+            except (KeyError, TypeError) as e:
+                print(f"Failed to parse embeddings from server response: {e}")
+                print(f"Received data: {data}")
+                all_embeddings.extend([[]] * len(batch))
+        return all_embeddings
 
     def _get_model_from_server(self):
         try:

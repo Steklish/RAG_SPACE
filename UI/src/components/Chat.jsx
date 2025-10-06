@@ -13,10 +13,12 @@ import {
   Toolbar,
   CssBaseline,
   Divider,
+  Grid,
 } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
+import DocumentManager from './DocumentManager';
 
-const Chat = () => {
+const Chat = ({ threadId }) => {
   const [messages, setMessages] = useState([]);
   const [inputValue, setInputValue] = useState('');
   const [models, setModels] = useState(null);
@@ -67,34 +69,37 @@ const Chat = () => {
       setIsLoading(true);
 
       try {
-        const response = await fetch('/api/chat', {
+        const response = await fetch(`/api/threads/${threadId}/chat`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ prompt: inputValue }),
+          body: JSON.stringify({ content: inputValue }),
         });
 
         if (!response.ok) {
             throw new Error('Network response was not ok');
         }
         
-        // If you were to implement streaming, you would process the stream here.
-        // For now, we'll assume a simple JSON response if the endpoint existed.
-        // Since it doesn't, this will likely fall into the catch block.
-        const data = await response.json(); // Or handle as a stream
-        const botMessage = {
-            id: Date.now() + 1,
-            text: data.response, // Adjust based on actual API response structure
-            sender: 'bot'
-        };
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let botMessage = { id: Date.now() + 1, text: '', sender: 'bot' };
         setMessages(prev => [...prev, botMessage]);
+
+        while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            const chunk = decoder.decode(value);
+            const data = JSON.parse(chunk.replace('data: ', ''));
+            botMessage.text += data.data;
+            setMessages(prev => [...prev.slice(0, -1), botMessage]);
+        }
 
       } catch (error) {
         console.error('Error sending message:', error);
         const errorMessage = {
           id: Date.now() + 1,
-          text: "Error: The '/chat' endpoint is not implemented on the backend.",
+          text: "Error: Could not send message.",
           sender: 'system',
         };
         setMessages(prev => [...prev, errorMessage]);
@@ -120,70 +125,65 @@ const Chat = () => {
           flexGrow: 1,
           bgcolor: 'background.default',
           p: 3,
-          display: 'flex',
-          flexDirection: 'column',
           height: '100%',
         }}
       >
         <Toolbar />
-        <Paper elevation={3} sx={{ flexGrow: 1, overflowY: 'auto', p: 2, mb: 2 }}>
-          <List>
-            {messages.map((msg) => (
-              <ListItem key={msg.id} sx={{
-                justifyContent: msg.sender === 'user' ? 'flex-end' : 'flex-start',
-              }}>
-                <Paper
-                  elevation={1}
-                  sx={{
-                    p: 1.5,
-                    bgcolor: msg.sender === 'user' ? 'primary.main' : 'grey.300',
-                    color: msg.sender === 'user' ? 'primary.contrastText' : 'text.primary',
-                    borderRadius: msg.sender === 'user' ? '20px 20px 5px 20px' : '20px 20px 20px 5px',
-                    maxWidth: '70%',
-                  }}
-                >
-                  <ListItemText primary={msg.text} />
-                </Paper>
-              </ListItem>
-            ))}
-            {isLoading && (
-              <ListItem sx={{justifyContent: 'flex-start'}}>
-                <CircularProgress size={24} />
-              </ListItem>
-            )}
-            <div ref={messagesEndRef} />
-          </List>
-        </Paper>
-        <Box sx={{ display: 'flex' }}>
-          <TextField
-            fullWidth
-            variant="outlined"
-            placeholder="Type a message..."
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && !isLoading && handleSendMessage()}
-            disabled={isLoading}
-          />
-          <Button
-            variant="contained"
-            color="primary"
-            onClick={handleSendMessage}
-            disabled={isLoading}
-            sx={{ ml: 1, px: 3 }}
-          >
-            <SendIcon />
-          </Button>
-        </Box>
-        <Divider sx={{ my: 2 }} />
-        <Box>
-            <Typography variant="subtitle1">Backend Info</Typography>
-            {chatModelInfo ? (
-                <Typography variant="body2">Chat Model: {chatModelInfo.model || 'Loading...'}</Typography>
-            ) : <CircularProgress size={20} />}
-            {models ? (
-                <Typography variant="body2">Available Models: {models.models?.join(', ') || 'None'}</Typography>
-            ) : <CircularProgress size={20} />}
-        </Box>
+        <Grid container spacing={2} sx={{ height: '100%' }}>
+          <Grid item xs={8} sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+            <Paper elevation={3} sx={{ flexGrow: 1, overflowY: 'auto', p: 2, mb: 2 }}>
+              <List>
+                {messages.map((msg) => (
+                  <ListItem key={msg.id} sx={{
+                    justifyContent: msg.sender === 'user' ? 'flex-end' : 'flex-start',
+                  }}>
+                    <Paper
+                      elevation={1}
+                      sx={{
+                        p: 1.5,
+                        bgcolor: msg.sender === 'user' ? 'primary.main' : 'grey.300',
+                        color: msg.sender === 'user' ? 'primary.contrastText' : 'text.primary',
+                        borderRadius: msg.sender === 'user' ? '20px 20px 5px 20px' : '20px 20px 20px 5px',
+                        maxWidth: '70%',
+                      }}
+                    >
+                      <ListItemText primary={msg.text} />
+                    </Paper>
+                  </ListItem>
+                ))}
+                {isLoading && (
+                  <ListItem sx={{justifyContent: 'flex-start'}}>
+                    <CircularProgress size={24} />
+                  </ListItem>
+                )}
+                <div ref={messagesEndRef} />
+              </List>
+            </Paper>
+            <Box sx={{ display: 'flex' }}>
+              <TextField
+                fullWidth
+                variant="outlined"
+                placeholder="Type a message..."
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && !isLoading && handleSendMessage()}
+                disabled={isLoading}
+              />
+              <Button
+                variant="contained"
+                color="primary"
+                onClick={handleSendMessage}
+                disabled={isLoading}
+                sx={{ ml: 1, px: 3 }}
+              >
+                <SendIcon />
+              </Button>
+            </Box>
+          </Grid>
+          <Grid item xs={4}>
+            <DocumentManager threadId={threadId} />
+          </Grid>
+        </Grid>
       </Box>
     </Box>
   );

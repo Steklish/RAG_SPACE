@@ -15,6 +15,16 @@ class Document(BaseModel):
     chunks: int
     content: Optional[str] = None
     metadata: Optional[Dict[str, Any]] = None
+
+class DocumentMetadata(BaseModel):
+    id: str
+    name: str
+    type: str
+    size: int
+    uploadedAt: datetime
+    status: StatusType
+    chunks: int
+    metadata: Optional[Dict[str, Any]] = None
     
 class ConversationThread(BaseModel):
     """
@@ -75,3 +85,16 @@ class Thread(BaseModel):
     
 class UserMessage(BaseModel):
     content: str
+    
+class DocumentId(BaseModel):
+    document_id: str
+
+class ChunkQuery(BaseModel):
+    text: str
+    top_k: int = 5
+
+class ChunkQueryResult(BaseModel):
+    id: str
+    text: str
+    metadata: Dict[str, Any]
+    distance: float

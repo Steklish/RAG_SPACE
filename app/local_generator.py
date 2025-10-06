@@ -70,6 +70,9 @@ class LocalGenerator:
                 r = httpx.post(self.url, json=payload, timeout=TIMEOUT)
                 r.raise_for_status()
                 data = r.json()
+                with open("./storage/dev/response.txt", "a", encoding="utf-8") as f:
+                    f.write("\n---\n")
+                    f.write(str(data))
                 # обычный OAI-ответ
                 msg = (data.get("choices") or [{}])[0].get("message", {})
                 text = msg.get("content")
@@ -171,6 +174,12 @@ class LocalGenerator:
                     user=full_prompt,
                     temperature=0.7,
                     max_tokens=2048)
+                with open("./storage/dev/response.txt", "a", encoding="utf-8") as f:
+                    f.write("\n---\n")
+                    f.write(full_prompt)
+                    f.write(response_text)
+                    f.write("\n---\n")
+                    
                 print(f"{SUCCESS_COLOR}Response received from Llama server.{Colors.RESET}")
                 cleaned_response = self._clean_json_response(response_text)
                 try:

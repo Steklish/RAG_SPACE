@@ -1,5 +1,6 @@
 import os
 import uuid
+import hashlib
 from dotenv import load_dotenv
 
 from datetime import datetime
@@ -42,6 +43,7 @@ LLAMACPP_MAX_RETRIES = int(os.getenv("LLAMACPP_MAX_RETRIES", "3"))
 # Директории
 os.makedirs("./storage", exist_ok=True)
 os.makedirs("./storage/threads", exist_ok=True)
+os.makedirs("./storage/dev", exist_ok=True)
 os.makedirs(STORAGE_RAW_DIR, exist_ok=True)
 os.makedirs(CHROMA_PERSIST_DIR, exist_ok=True)
 
@@ -97,10 +99,33 @@ async def upload_documents(files: List[UploadFile] = File(...)):
     created: List[Dict[str, Any]] = []
 
     for up in files:
+        filename = up.filename or f"file_{uuid.uuid4()}"
+        existing_doc = chroma_client.get_document_by_name(filename)
+        
+        temp_path = os.path.join(STORAGE_RAW_DIR, f"temp_{uuid.uuid4()}")
+        with open(temp_path, "wb") as f:
+            content = await up.read()
+            f.write(content)
+
+        if existing_doc:
+            ext = os.path.splitext(existing_doc["name"])[1].lower().lstrip(".")
+            existing_raw_path = os.path.join(STORAGE_RAW_DIR, f"{existing_doc['id']}.{ext}")
+            
+            with open(existing_raw_path, "rb") as f:
+                existing_content = f.read()
+
+            if hashlib.sha256(content).hexdigest() == hashlib.sha256(existing_content).hexdigest():
+                os.remove(temp_path)
+                continue  # Skip to the next file
+
+            chroma_client.delete_document(existing_doc["id"])
+            os.remove(existing_raw_path)
+
         doc_id = str(uuid.uuid4())
-        filename = up.filename or f"file_{doc_id}"
         ext = os.path.splitext(filename)[1].lower().lstrip(".")
         raw_path = os.path.join(STORAGE_RAW_DIR, f"{doc_id}.{ext}")
+        os.rename(temp_path, raw_path)
+        
         uploaded_at = datetime.utcnow().isoformat()
 
         def _finish(status: str, chunks: int, err: str | None = None):
@@ -121,13 +146,6 @@ async def upload_documents(files: List[UploadFile] = File(...)):
             })
 
         try:
-            with open(raw_path, "wb") as f:
-                while True:
-                    chunk = await up.read(1024 * 1024)
-                    if not chunk:
-                        break
-                    f.write(chunk)
-            
             chunk_count = chroma_client.ingest_file(
                 doc_id, raw_path, filename, up.content_type or f"application/{ext}", uploaded_at, CHUNK_SIZE, CHUNK_OVERLAP
             )
@@ -137,6 +155,32 @@ async def upload_documents(files: List[UploadFile] = File(...)):
             _finish("error", 0, f"fatal: {e}")
 
     return safe_json(created)
+
+@app.get("/api/documents", response_model=List[Document])
+def get_documents():
+    """
+    Retrieves a list of all available documents.
+    """
+    documents = chroma_client.get_all_documents()
+    return safe_json(documents)
+
+@app.get("/api/documents/{doc_id}", response_model=DocumentMetadata)
+def get_document(doc_id: str):
+    """
+    Retrieves a single document by its ID.
+    """
+    document = chroma_client.get_document(doc_id)
+    if not document:
+        raise HTTPException(status_code=404, detail="Document not found")
+    return safe_json(document)
+
+@app.post("/api/query/chunks", response_model=List[ChunkQueryResult])
+def query_chunks(query: ChunkQuery):
+    """
+    Retrieves n chunks based on a text query.
+    """
+    results = chroma_client.query_chunks(query.text, query.top_k)
+    return safe_json(results)
 
 # =========================
 # THREADS
@@ -171,9 +215,25 @@ async def chat_in_thread(thread_id: str, message: UserMessage):
     try:
         def stream_generator():
             for chunk in agent.user_query(message.content, thread_id):
-                yield f"data: {json.dumps({'type': 'chunk', 'data': chunk})}\n\n"
+                yield f"data: {json.dumps({'type': 'chunk', 'data': chunk}, ensure_ascii=False)}\n\n"
         
         return StreamingResponse(stream_generator(), media_type="text/event-stream")
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+@app.post("/api/threads/{thread_id}/documents")
+async def add_document_to_thread_endpoint(thread_id: str, doc: DocumentId):
+    try:
+        thread_store.add_document_to_thread(thread_id, doc.document_id)
+        return safe_json({"status": "success"})
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+@app.delete("/api/threads/{thread_id}/documents/{document_id}")
+async def remove_document_from_thread_endpoint(thread_id: str, document_id: str):
+    try:
+        thread_store.remove_document_from_thread(thread_id, document_id)
+        return safe_json({"status": "success"})
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 

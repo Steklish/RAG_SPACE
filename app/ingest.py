@@ -5,6 +5,7 @@ from typing import List
 import pdfplumber
 from bs4 import BeautifulSoup
 from docx import Document as DocxDocument
+import chardet
 
 # --------- простая, без NLTK, токенизация/чанкинг ---------
 
@@ -51,11 +52,8 @@ def extract_text_from_file(path: str, mime: str | None = None) -> str:
         return extract_docx(path)
     if ext in [".html", ".htm"]:
         return extract_html(path)
-    if ext in [".md", ".txt"]:
-        return _read_text_best_effort(path)
-    #всё остальное — как текст
-    with open(path, "r", encoding="utf-8", errors="ignore") as f:
-        return f.read()
+    # всё остальное — как текст
+    return _read_text_best_effort(path)
 
 
 def _dehyphenate_lines(text: str) -> str:
@@ -88,19 +86,34 @@ def extract_pdf(path: str) -> str:
 
 
 def _read_text_best_effort(path: str) -> str:
+    with open(path, "rb") as f:
+        raw_data = f.read()
+
+    # 1. Try UTF-8 first, as it's most common
     try:
-        with open(path, "r", encoding="utf-8") as f:
-            return f.read()
+        return raw_data.decode("utf-8")
     except UnicodeDecodeError:
-        for enc in ("cp1251", "latin-1"):
-            try:
-                with open(path, "r", encoding=enc) as f:
-                    return f.read()
-            except UnicodeDecodeError:
-                continue
-    # последний шанс
-    with open(path, "r", encoding="utf-8", errors="ignore") as f:
-        return f.read()
+        pass
+
+    # 2. If UTF-8 fails, use chardet
+    detection = chardet.detect(raw_data)
+    encoding = detection.get("encoding")
+    
+    if encoding:
+        try:
+            return raw_data.decode(encoding)
+        except (UnicodeDecodeError, TypeError):
+            pass # It failed, so we'll try other encodings
+
+    # 3. Try common fallbacks
+    for enc in ("cp1251", "latin-1"):
+        try:
+            return raw_data.decode(enc)
+        except (UnicodeDecodeError, TypeError):
+            continue
+    
+    # 4. Last resort
+    return raw_data.decode("utf-8", errors="ignore")
 
 
 
@@ -138,8 +151,7 @@ def extract_docx(path: str) -> str:
     return normalize_text(text)
 
 def extract_html(path: str) -> str:
-    with open(path, "r", encoding="utf-8", errors="ignore") as f:
-        html = f.read()
+    html = _read_text_best_effort(path)
     soup = BeautifulSoup(html, "html.parser")
     for tag in soup(["script", "style", "noscript"]):
         tag.extract()
