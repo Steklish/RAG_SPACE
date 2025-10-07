@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import FileDropzone from './FileDropzone';
+import FileIcon from './FileIcon';
 import { PlusCircle, Trash2 } from 'lucide-react'; // Using lucide-react for icons
 
 function DocumentManagement({ currentThread, onThreadUpdate }) {
@@ -107,7 +108,10 @@ function DocumentManagement({ currentThread, onThreadUpdate }) {
       <ul className="document-list">
         {filesToShow.map(doc => (
           <li key={doc.id}>
-            <span>{doc.name}</span>
+            <span className="file-name">
+              <FileIcon filename={doc.name} />
+              {doc.name}
+            </span>
             {renderFileActions(doc)}
           </li>
         ))}

@@ -61,7 +61,7 @@ class Agent:
             f"{examples}\n\n"
             f"Based on the information above, analyze the last user request and determine the intent and whether retrieval is needed."
         )
-        
+        print("Prompt for intent analysis:", prompt)
         response: IntentAnalysis = self.generator.generate(
             language=self.primary_language,
             prompt=prompt,
@@ -70,7 +70,7 @@ class Agent:
         print(f"Identified intent: {response.intent}, Need for retrieval: {response.need_for_retrieval}")
         return response
     
-    def user_query(self, user_input: str, thread_id: str):
+    def user_query(self, user_input: str, thread_id: str, iterate: bool = True):
         thread = self.thread_store.get_thread(thread_id)
         if not thread:
             raise ValueError("Thread not found")
@@ -85,9 +85,8 @@ class Agent:
                 query_text=user_input,
                 top_k=5
             )
-            
             chunks_text = "\n".join(
-                [f"- {chunk['text']}" for chunk in retrieved_chunks_data]
+                [f"<chunk {index} name=\"{chunk['metadata']['name']}\"> {chunk['text']} </chunk {index}>\n" for index, chunk in enumerate(retrieved_chunks_data)]
             )
             
             examples = """
@@ -137,6 +136,11 @@ class Agent:
                 pydantic_model=ResponseWithRetrieval)
             thread.history.append(f"Agent: {response.answer}")
             yield response.answer
+            
+            if response.any_more_info_needed and iterate:
+                yield "<internal>" + response.any_more_info_needed
+                thread.history.append(f"Agent: {response.any_more_info_needed}")
+                yield from self.agent_query(0, thread, response.any_more_info_needed)
         else:
             prompt = (
                 f"You are a helpful assistant. Based on the chat history, provide a comprehensive and informative answer to the user's last request.\n\n"
@@ -145,43 +149,6 @@ class Agent:
                 f"</chat_history>\n\n"
                 f"Based on the identified intent: '{intent.intent}', provide a comprehensive answer."
             )
-            response = self.generator.generate(
-                language=self.primary_language,
-                prompt=prompt,
-                pydantic_model=ResponseWithoutRetrieval)  
-            yield response.answer
-        self.thread_store.save_thread(thread)
-    
-    def _user_query(self, user_input: str, thread_id: str):
-        thread = self.thread_store.get_thread(thread_id)
-        if not thread:
-            raise ValueError("Thread not found")
-        
-        thread.history.append(f"User: {user_input}")
-        
-        intent = self.user_intent(thread)
-        
-        if intent.need_for_retrieval:
-            
-            retrieved_chunks = self.chroma_client.search_documents(
-                query_text=user_input,
-                top_k=5
-            )
-            prompt = "\n".join(thread.history) + f"\nBased on the identified intent: {intent.intent}, and the following retrieved information: {retrieved_chunks}, provide a comprehensive answer. If more information is needed, specify what is needed. "
-            response = self.generator.generate(
-                language=self.primary_language,
-                prompt=prompt,
-                pydantic_model=ResponseWithRetrieval)
-            thread.history.append(f"Agent: {response.answer}")
-            yield response.answer
-            
-            
-            if response.any_more_info_needed:
-                yield "<internal>" + response.any_more_info_needed
-                thread.history.append(f"Agent: {response.any_more_info_needed}")
-                yield from self.agent_query(0, thread, response.any_more_info_needed)
-        else:
-            prompt = "\n".join(thread.history) + f"\nBased on the identified intent: {intent.intent}, provide a comprehensive answer."
             response = self.generator.generate(
                 language=self.primary_language,
                 prompt=prompt,
@@ -201,8 +168,11 @@ class Agent:
         response = self.generator.generate(
             language=self.primary_language,
             prompt=prompt,
-            pydantic_model=ResponseWithoutRetrieval)  
+            pydantic_model=ResponseWithRetrieval)  
         print(f"Iteration {iteration} - Agent response: {response.answer}")
         thread.history.append(f"Agent: {response.answer}")
         yield response.answer
-        
+        if response.any_more_info_needed:
+            yield "<internal>" + response.any_more_info_needed
+            thread.history.append(f"Agent: {response.any_more_info_needed}")
+            yield from self.agent_query(iteration + 1, thread, response.any_more_info_needed)

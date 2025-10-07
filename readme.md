@@ -37,16 +37,26 @@
 
 ### 1. Запуск серверов моделей
 
-Вам понадобятся два отдельных экземпляра `llama-server`: один для чат-модели и один для эмбеддинг-модели.
+По умолчанию, серверы для чат-модели и эмбеддинг-модели запускаются автоматически вместе с бэкенд-сервером FastAPI. Конфигурации для запуска находятся в папке `app/launch_configs`.
+
+Если вы хотите запустить бэкенд без автоматического запуска серверов моделей, установите переменную окружения `START_SERVERS` в `false`:
+
+```shell
+START_SERVERS=false python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8080
+```
+
+Если вы запустили приложение без серверов, вы можете запустить их позже, отправив POST-запрос на эндпоинт `/api/servers/start`.
+
+Вы также можете запустить серверы моделей вручную. Вам понадобятся два отдельных экземпляра `llama-server`: один для чат-модели и один для эмбеддинг-модели.
 
 **Запуск чат-модели (пример):**
 ```shell
-llama-server.exe --model D:\Duty\RR\models\gemma-3-1B-it-QAT-Q4_0.gguf --n_gpu_layers 999 --port 11434 --ctx-size 12000
+llama-server.exe --model models/gemma-3-1B-it-QAT-Q4_0.gguf --n_gpu_layers 999 --port 11434 --ctx-size 12000
 ```
 
 **Запуск эмбеддинг-модели (пример):**
 ```shell
-llama-server --port 11435 --model D:\Duty\RR\models\embeddinggemma-300m-qat-Q8_0.gguf --embedding -c 2048 -b 2048 -ub 1024
+llama-server --port 11435 --model models/embeddinggemma-300m-qat-Q8_0.gguf --embedding -c 2048 -b 2048 -ub 1024
 ```
 *Примечание: При необходимости измените пути к моделям и параметры.*
 
@@ -61,10 +71,10 @@ python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8080
 
 ### 3. Запуск фронтенд-интерфейса
 
-В отдельном терминале перейдите в каталог `UI`, установите зависимости и запустите сервер разработки Vite.
+В отдельном терминале перейдите в каталог `front-react-v`, установите зависимости и запустите сервер разработки Vite.
 
 ```shell
-cd UI
+cd front-react-v
 npm install
 npm run dev
 ```

@@ -1,0 +1,22 @@
+{
+    "active_config": 0,
+    "configs": [
+        {
+            "name": "embeddinggemma-300m-qat-Q8_0",
+            "command": "llama-server.exe",
+            "args": [
+                "--port",
+                "11435",
+                "--model",
+                "models/embeddinggemma-300m-qat-Q8_0.gguf",
+                "--embedding",
+                "-c",
+                "2048",
+                "-b",
+                "2048",
+                "-ub",
+                "1024"
+            ]
+        }
+    ]
+}

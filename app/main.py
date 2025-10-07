@@ -19,6 +19,7 @@ from app.local_generator import LocalGenerator
 from app.embedding_client import EmbeddingClient
 from app.schemas import *
 from app.thread_store import ThreadStore
+from app.server_launcher import ServerLauncher
 
 load_dotenv(override=True)
 
@@ -50,6 +51,17 @@ os.makedirs(CHROMA_PERSIST_DIR, exist_ok=True)
 
 app = FastAPI(title="RAGgie BOY", version="0.0.1")
 
+server_launcher = ServerLauncher()
+
+@app.on_event("startup")
+async def startup_event():
+    if os.getenv("START_SERVERS", "true").lower() != "false":
+        server_launcher.start_all_servers()
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    server_launcher.stop_all_servers()
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -64,6 +76,44 @@ chroma_client = ChromaClient(embed_client, CHROMA_PERSIST_DIR)
 thread_store = ThreadStore()
 agent = Agent(llm_client, chroma_client, thread_store)
 
+class ServerStartRequest(BaseModel):
+    server_type: str
+    config_name: str
+
+class ServerStopRequest(BaseModel):
+    server_type: str
+
+class ServerUpdateConfig(BaseModel):
+    server_type: str
+    config_name: str
+    config_index: int
+
+@app.get("/api/servers/configs")
+def get_server_configs():
+    return safe_json(server_launcher.get_available_configs())
+
+@app.post("/api/servers/start")
+def start_servers(req: ServerStartRequest):
+    server_launcher.start_server(req.server_type, req.config_name)
+    return safe_json({"status": "success", "message": f"{req.server_type} server started."})
+
+@app.post("/api/servers/stop")
+def stop_servers(req: ServerStopRequest):
+    server_launcher.stop_server(req.server_type)
+    return safe_json({"status": "success", "message": f"{req.server_type} server stopped."})
+
+@app.post("/api/servers/update_config")
+def update_server_config(req: ServerUpdateConfig):
+    server_launcher.update_config(req.server_type, req.config_name, req.config_index)
+    return safe_json({"status": "success", "message": f"{req.server_type} server config updated and restarted."})
+
+@app.get("/api/servers/status")
+def get_server_status():
+    return safe_json(server_launcher.get_server_status())
+
+@app.get("/api/servers/active_configs")
+def get_active_configs():
+    return safe_json(server_launcher.get_active_configs())
 
 @app.get("/api/chat_model")
 def get_chat_model_handler():

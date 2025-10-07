@@ -8,6 +8,8 @@
   --hover-color: #4a4a4c;
   --message-user-background: #3a3a3c;
   --message-bot-background: #2a2a2c;
+  --success-color: #71b34f;
+  --error-color: #F44336;
 }
 
 body {
@@ -17,6 +19,7 @@ body {
   margin: 0;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overflow: hidden;
 }
 
 .app-container {
@@ -35,11 +38,12 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  transition: box-shadow 0.3s ease;
+  transition: border 0.3s ease;
 }
 
 .threads-panel:focus-within, .chat-panel:focus-within, .document-management-panel:focus-within {
-  box-shadow: 0 0 0 2px var(--primary-color);
+  /* border-color:  var(--primary-color); */
+  border: 5px solid var(--hover-color);
 }
 
 h2 {
@@ -107,7 +111,7 @@ h2 {
 
 .send-button {
   border: none;
-  background-color: var(--primary-color);
+  background-color: var(--input-background);
   color: white;
   border-radius: 2rem;
   padding: 0.75rem 1.5rem;
@@ -118,7 +122,7 @@ h2 {
 }
 
 .send-button:hover {
-  background-color: #5a32a3;
+  background-color: var(--primary-color);
 }
 
 .threads-panel ul, .document-list {
@@ -177,7 +181,7 @@ h2 {
 }
 
 .new-thread-btn {
-  background-color: var(--primary-color);
+  background-color: var(--input-background);
   color: white;
   border: none;
   border-radius: 50%;
@@ -191,7 +195,7 @@ h2 {
 }
 
 .new-thread-btn:hover {
-  background-color: #5a32a3;
+  background-color: var(--primary-color);
 }
 
 .empty-state {
@@ -275,6 +279,15 @@ h2 {
   display: flex;
   gap: 0.5rem;
   visibility: hidden; /* Hide actions by default */
+}
+
+.document-list li .file-icon {
+  margin-right: 0.5rem;
+}
+
+.document-list li .file-name {
+  display: flex;
+  align-items: center;
 }
 
 .document-list li:hover .file-actions {
@@ -368,6 +381,31 @@ h2 {
   overflow: hidden;
 }
 
+.settings-content {
+  flex-grow: 1;
+  overflow-y: auto;
+  padding-right: 1rem; /* Add some padding to avoid content touching the scrollbar */
+}
+
+/* Custom scrollbar for settings */
+.settings-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.settings-content::-webkit-scrollbar-track {
+  background: var(--panel-background);
+}
+
+.settings-content::-webkit-scrollbar-thumb {
+  background-color: var(--input-background);
+  border-radius: 10px;
+  border: 2px solid var(--panel-background);
+}
+
+.settings-content::-webkit-scrollbar-thumb:hover {
+  background-color: var(--hover-color);
+}
+
 .left-panel {
   display: flex;
   flex-direction: column;
@@ -400,9 +438,49 @@ h2 {
 }
 
 .setting-item {
-  display: flex;
-  flex-direction: column;
+  background-color: var(--input-background);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+  transition: box-shadow 0.3s ease;
+}
+
+.setting-item:focus-within {
+    box-shadow: 0 0 0 2px var(--primary-color);
+}
+
+.setting-item h3 {
+  margin-top: 0;
   margin-bottom: 1rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--primary-color);
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 0.75rem;
+}
+
+.setting-item p {
+    margin-top: 0;
+    margin-bottom: 0.5rem;
+}
+
+.status-indicator {
+  margin-left: 15px;
+  font-weight: 600;
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  color: white;
+  display: inline-block;
+}
+
+.status-running {
+  background-color: var(--success-color);
+}
+
+.status-stopped {
+  background-color: var(--error-color);
 }
 
 .setting-item label {
@@ -417,8 +495,43 @@ h2 {
   border-radius: 8px;
   padding: 0.5rem;
   font-size: 1rem;
+  width: 100%;
 }
 
+.setting-item .button-group {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
 
+.setting-item button {
+  border: none;
+  background-color: var(--input-background);
+  color: var(--text-color);
+  border-radius: 8px;
+  padding: 0.6rem 1.2rem;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background-color 0.3s, color 0.3s;
+  width: 100%;
+  text-transform: uppercase;
+  font-size: 0.8rem;
+  letter-spacing: 0.5px;
+  border: 1px solid var(--border-color);
+}
 
+.setting-item button:hover {
+  background-color: var(--primary-color);
+  color: white;
+  border-color: var(--primary-color);
+}
 
+.setting-item button.stop-button:hover {
+    background-color: var(--error-color);
+    border-color: var(--error-color);
+}
+
+.setting-item button:disabled {
+    background-color: var(--border-color);
+    cursor: not-allowed;
+}
