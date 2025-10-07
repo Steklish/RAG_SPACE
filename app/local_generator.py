@@ -203,22 +203,19 @@ class LocalGenerator:
         raise Exception("Failed to generate object after multiple retries.")
     
     def get_model_info(self):
-        return {
-            "model": self.model,
-            "base": self.base,
-            "url": self.url
-        }
+        return self.model
         
     def _get_model_from_server(self):
         try:
-            response = requests.get(f"{self.base}/models")
+            response = requests.get(f"{self.base}/v1/models")
             response.raise_for_status()
             models = response.json().get("data", [])
             return models[0]["id"][models[0]["id"].rfind("\\") + 1:]
         except requests.exceptions.RequestException as e:
             print(f"Error fetching models from server: {e}")
             return []
-
+        
+        
 if __name__ == "__main__": 
     dotenv.load_dotenv(override=True)  # Load environment variables from a .env file if present
     # 1. Define a simple Pydantic model

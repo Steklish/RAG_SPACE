@@ -87,6 +87,7 @@ class EmbeddingClient:
     def _get_model_from_server(self):
         try:
             response = requests.get(f"{self.base}/models")
+            print(response)
             response.raise_for_status()
             models = response.json().get("data", [])
             return models[0]["id"][models[0]["id"].rfind("\\") + 1:]

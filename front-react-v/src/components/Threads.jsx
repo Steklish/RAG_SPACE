@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { Edit2 } from 'lucide-react';
+import { Edit2, MessageSquare } from 'lucide-react';
 
 function Threads({ currentThread, setCurrentThread }) {
   const [threads, setThreads] = useState([]);
@@ -68,6 +68,15 @@ function Threads({ currentThread, setCurrentThread }) {
     }
   };
 
+  const handleSelectThread = async (thread) => {
+    try {
+      const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/api/threads/${thread.id}/details`);
+      setCurrentThread(response.data);
+    } catch (error) {
+      console.error("Error fetching thread details:", error);
+    }
+  };
+
   return (
     <div className="threads-panel">
       <div className="panel-header">
@@ -94,11 +103,19 @@ function Threads({ currentThread, setCurrentThread }) {
                 />
               ) : (
                 <>
-                  <span>{thread.name || 'Untitled Thread'}</span>
-                  <div className="thread-actions">
-                    <button onClick={() => handleRenameStart(thread)} className="icon-button">
-                      <Edit2 size={16} />
-                    </button>
+                  <span className="thread-name">
+                    <MessageSquare size={16} className="thread-icon" />
+                    {thread.name || 'Untitled Thread'}
+                  </span>
+                  <div className="thread-meta">
+                    {thread.document_count > 0 && (
+                      <span className="doc-count-badge">{thread.document_count}</span>
+                    )}
+                    <div className="thread-actions">
+                      <button onClick={() => handleRenameStart(thread)} className="icon-button">
+                        <Edit2 size={16} />
+                      </button>
+                    </div>
                   </div>
                 </>
               )}

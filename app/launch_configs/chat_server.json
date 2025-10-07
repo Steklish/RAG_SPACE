@@ -1,5 +1,5 @@
 {
-    "active_config": 0,
+    "active_config": 1,
     "configs": [
         {
             "name": "gemma-3-1B-it-QAT-Q4_0",
@@ -16,7 +16,7 @@
             ]
         },
         {
-            "name": "gemma-3-1B-it-QAT-Q4_0 (alternative)",
+            "name": "THE ONE",
             "command": "llama-server.exe",
             "args": [
                 "--model",
@@ -24,7 +24,35 @@
                 "--n_gpu_layers",
                 "999",
                 "--port",
-                "11435",
+                "11434",
+                "--ctx-size",
+                "12000"
+            ]
+        },
+        {
+            "name": "gemma-3-1B-it-QAT-Q4_0 (alternative 2)",
+            "command": "llama-server.exe",
+            "args": [
+                "--model",
+                "models/gemma-3-1B-it-QAT-Q4_0.gguf",
+                "--n_gpu_layers",
+                "999",
+                "--port",
+                "11434",
+                "--ctx-size",
+                "12000"
+            ]
+        },
+        {
+            "name": "gemma-3-1B-it-QAT-Q4_0 (alternative 3)",
+            "command": "llama-server.exe",
+            "args": [
+                "--model",
+                "models/gemma-3-1B-it-QAT-Q4_0.gguf",
+                "--n_gpu_layers",
+                "999",
+                "--port",
+                "11434",
                 "--ctx-size",
                 "12000"
             ]

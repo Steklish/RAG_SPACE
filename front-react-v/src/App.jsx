@@ -32,7 +32,7 @@ function App() {
   return (
     <Split
       className="app-container"
-      sizes={[20, 60, 20]}
+      sizes={[15, 70, 15]}
       minSize={250}
       expandToMin={false}
       gutterSize={10}
@@ -45,17 +45,18 @@ function App() {
       <Split
         className="left-panel"
         direction="vertical"
-        sizes={[75, 25]}
+        sizes={[60, 40]}
         minSize={100}
       >
         <Threads 
           currentThread={currentThread}
           setCurrentThread={setCurrentThread} 
         />
-        <Settings />
+        <Settings currentThread={currentThreadDetails} />
       </Split>
       <Chat 
         currentThread={currentThreadDetails}
+        onThreadUpdate={fetchThreadDetails}
       />
       <DocumentManagement 
         currentThread={currentThreadDetails}

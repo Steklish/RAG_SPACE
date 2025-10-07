@@ -2,12 +2,14 @@ import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import FileDropzone from './FileDropzone';
 import FileIcon from './FileIcon';
-import { PlusCircle, Trash2 } from 'lucide-react'; // Using lucide-react for icons
+import { PlusCircle, Trash2, Folder } from 'lucide-react'; // Using lucide-react for icons
 
 function DocumentManagement({ currentThread, onThreadUpdate }) {
   const [activeTab, setActiveTab] = useState('Global');
   const [globalFiles, setGlobalFiles] = useState([]);
   const [threadFiles, setThreadFiles] = useState([]);
+
+const [searchTerm, setSearchTerm] = useState('');
 
   const fetchGlobalFiles = useCallback(async () => {
     try {
@@ -70,14 +72,14 @@ function DocumentManagement({ currentThread, onThreadUpdate }) {
     }
   };
 
-  const renderFileActions = (doc) => {
+  const renderFileActions = (doc, isInThread) => {
     if (activeTab === 'Global') {
       return (
         <div className="file-actions">
           <button 
             onClick={() => handleAddDocToThread(doc.id)} 
-            disabled={!currentThread}
-            title={currentThread ? "Add to current thread" : "Select a thread to add"}
+            disabled={!currentThread || isInThread}
+            title={isInThread ? "Document is already in the current thread" : (!currentThread ? "Select a thread to add" : "Add to current thread")}
             className="icon-button"
           >
             <PlusCircle size={18} />
@@ -98,23 +100,42 @@ function DocumentManagement({ currentThread, onThreadUpdate }) {
 
   const filesToShow = activeTab === 'Global' ? globalFiles : threadFiles;
 
+  const filteredFiles = filesToShow.filter(doc =>
+    doc.name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   return (
     <div className="document-management-panel">
-      <h2>Files</h2>
+      <h2 className="panel-title">
+        <Folder size={20} className="title-icon" />
+        Files
+      </h2>
       <div className="tabs">
         <button onClick={() => setActiveTab('Global')} className={activeTab === 'Global' ? 'active' : ''}>Global</button>
         <button onClick={() => setActiveTab('Thread')} className={activeTab === 'Thread' ? 'active' : ''}>Thread</button>
       </div>
+      <div className="search-bar-container">
+        <input
+          type="text"
+          placeholder="Search documents..."
+          className="search-input"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+        />
+      </div>
       <ul className="document-list">
-        {filesToShow.map(doc => (
-          <li key={doc.id}>
-            <span className="file-name">
-              <FileIcon filename={doc.name} />
-              {doc.name}
-            </span>
-            {renderFileActions(doc)}
-          </li>
-        ))}
+        {filteredFiles.map(doc => {
+          const isInThread = currentThread?.document_ids?.includes(doc.id);
+          return (
+            <li key={doc.id} className={isInThread ? 'document-in-thread' : ''}>
+              <span className="file-name">
+                <FileIcon filename={doc.name} />
+                {doc.name}
+              </span>
+              {renderFileActions(doc, isInThread)}
+            </li>
+          );
+        })}
       </ul>
       <FileDropzone onFilesDrop={handleFilesDrop} />
     </div>

@@ -1,5 +1,8 @@
+/* eslint-disable no-unused-vars */
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
+import JsonEditPopup from './JsonEditPopup';
+import './JsonEditPopup.css';
 
 function Settings() {
   const [chatModel, setChatModel] = useState('');
@@ -11,6 +14,10 @@ function Settings() {
   const [selectedChatConfig, setSelectedChatConfig] = useState('');
   const [selectedEmbeddingConfig, setSelectedEmbeddingConfig] = useState('');
   const [serverStatus, setServerStatus] = useState({});
+  const [launchConfigs, setLaunchConfigs] = useState([]);
+  const [showJsonPopup, setShowJsonPopup] = useState(false);
+  const [editingConfigName, setEditingConfigName] = useState('');
+  const [language, setLanguage] = useState('English');
 
   const fetchServerStatus = useCallback(async () => {
     try {
@@ -21,26 +28,33 @@ function Settings() {
     }
   }, []);
 
+  const fetchServerConfigs = useCallback(async () => {
+    try {
+      const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/api/servers/configs`);
+      setServerConfigs(response.data);
+    } catch (err) {
+      console.error("Error fetching server configs:", err);
+    }
+  }, []);
+
   useEffect(() => {
     const fetchInitialData = async () => {
       try {
         setIsLoading(true);
-        const [chat, embedding, configs, activeConfigs] = await Promise.all([
-          axios.get(`${import.meta.env.VITE_API_BASE_URL}/api/chat_model`),
-          axios.get(`${import.meta.env.VITE_API_BASE_URL}/api/embedding_model`),
-          axios.get(`${import.meta.env.VITE_API_BASE_URL}/api/servers/configs`),
-          axios.get(`${import.meta.env.VITE_API_BASE_URL}/api/servers/active_configs`)
-        ]);
-        
-        setChatModel(chat.data.model || 'Not available');
-        setEmbeddingModel(embedding.data.model || 'Not available');
-        setServerConfigs(configs.data);
+        const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/api/settings`);
+        const settings = response.data;
 
-        if (activeConfigs.data.chat !== undefined) {
-          setSelectedChatConfig(activeConfigs.data.chat);
+        setChatModel(settings.chat_model.model || 'Not available');
+        setEmbeddingModel(settings.embedding_model.model || 'Not available');
+        setServerConfigs(settings.server_configs);
+        setLaunchConfigs(settings.launch_configs);
+        setLanguage(settings.language || 'English');
+
+        if (settings.active_configs.chat !== undefined) {
+          setSelectedChatConfig(settings.active_configs.chat);
         }
-        if (activeConfigs.data.embedding !== undefined) {
-          setSelectedEmbeddingConfig(activeConfigs.data.embedding);
+        if (settings.active_configs.embedding !== undefined) {
+          setSelectedEmbeddingConfig(settings.active_configs.embedding);
         }
         
         await fetchServerStatus();
@@ -57,6 +71,17 @@ function Settings() {
     const interval = setInterval(fetchServerStatus, 5000); // Poll every 5 seconds
     return () => clearInterval(interval);
   }, [fetchServerStatus]);
+
+  const handleLanguageChange = async (e) => {
+    const newLanguage = e.target.value;
+    setLanguage(newLanguage);
+    try {
+      await axios.put(`${import.meta.env.VITE_API_BASE_URL}/api/settings`, { language: newLanguage });
+    } catch (err) {
+      console.error("Error updating language:", err);
+      setError("Failed to update language.");
+    }
+  };
 
   const handleServerAction = async (serverType, configName, action, configIndex = 0) => {
     try {
@@ -79,6 +104,22 @@ function Settings() {
     }
   };
 
+  const handleSaveJson = async (configName, content) => {
+    try {
+      await axios.post(`${import.meta.env.VITE_API_BASE_URL}/api/launch_configs/${configName}`, content);
+      await fetchServerConfigs();
+    } catch (err) {
+      console.error(`Error saving ${configName}:`, err);
+      setError(`Failed to save ${configName}.`);
+    }
+  };
+
+  const handleSelectOther = (serverType) => {
+    const configName = serverType === 'chat' ? 'chat_server.json' : 'embedding_server.json';
+    setEditingConfigName(configName);
+    setShowJsonPopup(true);
+  };
+
   return (
     <div className="settings-panel">
       <div className="panel-header">
@@ -89,6 +130,13 @@ function Settings() {
         {error && <p className="error-message">{error}</p>}
         {!isLoading && !error && (
           <>
+            <div className="setting-item">
+              <h3>Language</h3>
+              <select value={language} onChange={handleLanguageChange}>
+                <option value="Russian">Russian</option>
+                <option value="English">English</option>
+              </select>
+            </div>
             <div className="setting-item">
               <h3>Chat Server</h3>
               <p>Status: 
@@ -101,11 +149,18 @@ function Settings() {
               <select 
                 id="chat-config-select" 
                 value={selectedChatConfig} 
-                onChange={(e) => setSelectedChatConfig(e.target.value)}
+                onChange={(e) => {
+                  if (e.target.value === 'other') {
+                    handleSelectOther('chat');
+                  } else {
+                    setSelectedChatConfig(parseInt(e.target.value, 10));
+                  }
+                }}
               >
                 {serverConfigs.chat.map((config, index) => (
                   <option key={index} value={index}>{config.name}</option>
                 ))}
+                <option value="other">Other...</option>
               </select>
               {!serverStatus.chat ? (
                 <div className="button-group">
@@ -131,11 +186,19 @@ function Settings() {
               <select 
                 id="embedding-config-select" 
                 value={selectedEmbeddingConfig} 
-                onChange={(e) => setSelectedEmbeddingConfig(e.target.value)}
+                onChange={(e) => {
+                  if (e.target.value === 'other') {
+                    handleSelectOther('embedding');
+                  }
+                  else {
+                    setSelectedEmbeddingConfig(parseInt(e.target.value, 10));
+                  }
+                }}
               >
                 {serverConfigs.embedding.map((config, index) => (
                   <option key={index} value={index}>{config.name}</option>
                 ))}
+                <option value="other">Other...</option>
               </select>
               {!serverStatus.embedding ? (
                 <div className="button-group">
@@ -151,6 +214,12 @@ function Settings() {
           </>
         )}
       </div>
+      <JsonEditPopup 
+        show={showJsonPopup}
+        configName={editingConfigName}
+        onClose={() => setShowJsonPopup(false)}
+        onSave={handleSaveJson}
+      />
     </div>
   );
 }

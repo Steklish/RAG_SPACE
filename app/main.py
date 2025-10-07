@@ -20,6 +20,7 @@ from app.embedding_client import EmbeddingClient
 from app.schemas import *
 from app.thread_store import ThreadStore
 from app.server_launcher import ServerLauncher
+from app.settings_store import SettingsStore
 
 load_dotenv(override=True)
 
@@ -47,6 +48,7 @@ os.makedirs("./storage/threads", exist_ok=True)
 os.makedirs("./storage/dev", exist_ok=True)
 os.makedirs(STORAGE_RAW_DIR, exist_ok=True)
 os.makedirs(CHROMA_PERSIST_DIR, exist_ok=True)
+LAUNCH_CONFIG_DIR = "./app/launch_configs"
 
 
 app = FastAPI(title="RAGgie BOY", version="0.0.1")
@@ -74,6 +76,7 @@ llm_client = LocalGenerator(LLAMACPP_CHAT_BASE)
 embed_client = EmbeddingClient(LLAMACPP_EMBED_BASE)
 chroma_client = ChromaClient(embed_client, CHROMA_PERSIST_DIR)
 thread_store = ThreadStore()
+settings_store = SettingsStore()
 agent = Agent(llm_client, chroma_client, thread_store)
 
 class ServerStartRequest(BaseModel):
@@ -261,7 +264,7 @@ def query_chunks(query: ChunkQuery):
     """
     Retrieves n chunks based on a text query.
     """
-    results = chroma_client.query_chunks(query.text, query.top_k)
+    results = chroma_client.search_chunks(query.text, query.top_k)
     return safe_json(results)
 
 # =========================
@@ -308,7 +311,7 @@ def rename_thread(thread_id: str, new_name: ThreadName):
         raise HTTPException(status_code=404, detail=str(e))
 
 @app.post("/api/threads/{thread_id}/chat")
-async def chat_in_thread(thread_id: str, message: UserMessage):
+async def chat_in_thread(thread_id: str, message: UserMessageRequest):
     try:
         def stream_generator():
             for chunk in agent.user_query(message.content, thread_id):
@@ -334,6 +337,53 @@ async def remove_document_from_thread_endpoint(thread_id: str, document_id: str)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
+
+# =========================
+# SETTINGS
+# =========================
+
+@app.get("/api/settings")
+def get_settings():
+    """
+    Provides a consolidated endpoint for all settings.
+    """
+    settings = {
+        "chat_model": llm_client.get_model_info(),
+        "embedding_model": {"model": embed_client._get_model_from_server()},
+        "server_configs": server_launcher.get_available_configs(),
+        "active_configs": server_launcher.get_active_configs(),
+        "launch_configs": [f for f in os.listdir(LAUNCH_CONFIG_DIR) if f.endswith('.json')]
+    }
+    return safe_json(settings)
+
+@app.put("/api/settings")
+def update_settings(settings: Dict[str, Any]):
+    current_settings = settings_store.get_settings()
+    current_settings.update(settings)
+    settings_store.save_settings(current_settings)
+    return safe_json({"status": "success", "settings": current_settings})
+
+@app.get("/api/launch_configs")
+def get_launch_configs():
+    configs = [f for f in os.listdir(LAUNCH_CONFIG_DIR) if f.endswith('.json')]
+    return safe_json(configs)
+
+@app.get("/api/launch_configs/{config_name}")
+def get_launch_config(config_name: str):
+    config_path = os.path.join(LAUNCH_CONFIG_DIR, config_name)
+    if not os.path.exists(config_path):
+        raise HTTPException(status_code=404, detail="Config not found")
+    with open(config_path, 'r') as f:
+        return safe_json(json.load(f))
+
+@app.post("/api/launch_configs/{config_name}")
+async def update_launch_config(config_name: str, config: Dict[str, Any]):
+    config_path = os.path.join(LAUNCH_CONFIG_DIR, config_name)
+    if not os.path.exists(config_path):
+        raise HTTPException(status_code=404, detail="Config not found")
+    with open(config_path, 'w') as f:
+        json.dump(config, f, indent=4)
+    return safe_json({"status": "success", "message": f"Config {config_name} updated."})
 
 
 # =========================

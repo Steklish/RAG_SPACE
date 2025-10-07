@@ -38,7 +38,7 @@ class ThreadStore:
         
         with open(thread_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
-            return Thread(**data)
+            return Thread.parse_obj(data)
 
     def get_thread_details(self, thread_id: str) -> Optional[Thread]:
         return self.get_thread(thread_id)
@@ -46,16 +46,7 @@ class ThreadStore:
     def save_thread(self, thread: Thread):
         thread_path = self._get_thread_path(thread.id)
         with open(thread_path, 'w', encoding='utf-8') as f:
-            json.dump(thread.dict(), f, indent=2, default=str, ensure_ascii=False)
-
-    def add_message(self, thread_id: str, message: str):
-        thread = self.get_thread(thread_id)
-        if not thread:
-            raise ValueError(f"Thread with id {thread_id} not found.")
-        
-        thread.history.append(message)
-        self.save_thread(thread)
-
+            json.dump(thread.model_dump(), f, indent=2, default=str, ensure_ascii=False)
 
     def update_metadata(self, thread_id: str, metadata: Dict[str, Any]):
         thread = self.get_thread(thread_id)
@@ -85,6 +76,7 @@ class ThreadStore:
                         "name": thread_data.name,
                         "created_at": thread_data.created_at.isoformat(),
                         "message_count": len(thread_data.history),
+                        "document_count": len(thread_data.document_ids),
                         "metadata": thread_data.metadata
                     })
         # Sort threads by creation date, newest first
@@ -107,3 +99,14 @@ class ThreadStore:
         if document_id in thread.document_ids:
             thread.document_ids.remove(document_id)
             self.save_thread(thread)
+
+    def delete_message(self, thread_id: str, message_index: int):
+        thread = self.get_thread(thread_id)
+        if not thread:
+            raise ValueError(f"Thread with id {thread_id} not found.")
+        
+        if 0 <= message_index < len(thread.history):
+            thread.history.pop(message_index)
+            self.save_thread(thread)
+        else:
+            raise IndexError("Message index out of range.")

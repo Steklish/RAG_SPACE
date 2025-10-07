@@ -113,23 +113,33 @@ class ChromaClient:
             )
 
 
-    def search_documents(self, query_text: str, top_k: int = 5, filters: Optional[Dict[str, Any]] = None) -> QueryResult:
+    def search_documents(self, query_text: str, top_k: int = 5, filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         """
         Searches for documents based on a query text.
         """
         query_embedding = self.embedding_client.embed_text(query_text)
-        if filters:
-            results = self.documents_collection.query(
-                query_embeddings=[query_embedding],
-                n_results=top_k,
-                where=filters
-            )
-        else:
-            results = self.documents_collection.query(
-                query_embeddings=[query_embedding],
-                n_results=top_k
-            )
-        return results
+        if not query_embedding:
+            return []
+            
+        results = self.documents_collection.query(
+            query_embeddings=[query_embedding],
+            n_results=top_k,
+            where=filters
+        )
+        
+        formatted_results = []
+        if results and results['ids'] and len(results['ids']) > 0:
+            for i, doc_id in enumerate(results['ids'][0]):
+                doc = self.get_document(doc_id)
+                if doc:
+                    formatted_results.append({
+                        "id": doc_id,
+                        "text": results['documents'][0][i], # type: ignore
+                        "metadata": {**results['metadatas'][0][i], "name": doc['name']}, # type: ignore
+                        "distance": results['distances'][0][i] # type: ignore
+                    })
+        
+        return formatted_results
 
     def _get_collections(self):
         return [c.name for c in self.client.list_collections()]
@@ -208,17 +218,22 @@ class ChromaClient:
             }
         return None
 
-    def query_chunks(self, query_text: str, top_k: int = 5) -> List[Dict[str, Any]]:
+    def search_chunks(self, query_text: str, top_k: int = 5, doc_ids: Optional[List[str]] = None) -> List[Dict[str, Any]]:
         """
-        Searches for chunks based on a query text.
+        Searches for chunks based on a query text, with an optional filter for document IDs.
         """
         query_embedding = self.embedding_client.embed_text(query_text)
         if not query_embedding:
             return []
         
+        # More explicit way to define the where_clause
+        where_filter = None
+        if doc_ids:
+            where_filter = {"doc_id": {"$in": doc_ids}}
         results = self.collection.query(
             query_embeddings=[query_embedding],
-            n_results=top_k
+            n_results=top_k,
+            where=where_filter # type: ignore
         )
         
         formatted_results = []

@@ -2,6 +2,7 @@
   --background-color: #1c1c1e;
   --text-color: #e1e1e0;
   --primary-color: #a9967f;
+  --primary-color-fade: #7b7061;
   --border-color: #3a3a3c;
   --panel-background: #2a2a2c;
   --input-background: #3a3a3c;
@@ -10,6 +11,7 @@
   --message-bot-background: #2a2a2c;
   --success-color: #71b34f;
   --error-color: #F44336;
+  --accent-color: #3a3a3a;
 }
 
 body {
@@ -86,6 +88,46 @@ h2 {
   border-bottom-left-radius: 0.5rem;
 }
 
+.retrieved-docs {
+  margin-top: 1rem;
+  border-top: 1px solid var(--border-color);
+  padding-top: 0.75rem;
+}
+
+.retrieved-docs strong {
+  font-size: 0.8rem;
+  color: var(--primary-color);
+  margin-bottom: 0.5rem;
+  display: block;
+}
+
+.retrieved-docs ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.retrieved-docs li a {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  background-color: var(--input-background);
+  color: var(--text-color);
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  text-decoration: none;
+  transition: background-color 0.3s;
+}
+
+.retrieved-docs li a:hover {
+  background-color: var(--primary-color);
+  color: white;
+}
+
 .chat-input-form {
   display: flex;
   padding: 1.5rem 0 0;
@@ -150,6 +192,12 @@ h2 {
   background-color: var(--primary-color);
   color: white;
 }
+
+.threads-panel li.active .doc-count-badge {
+  background-color: var(--primary-color-fade);
+  color: var(--primary-color);
+}
+
 
 .gutter {
   background-color: var(--background-color);
@@ -352,8 +400,41 @@ h2 {
   visibility: hidden;
 }
 
+.threads-panel li .thread-name {
+  display: flex;
+  align-items: center;
+}
+
+.threads-panel li .thread-icon {
+  margin-right: 0.5rem;
+}
+
+.threads-panel li .thread-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.threads-panel li .doc-count-badge {
+  background-color: var(--primary-color);
+  color: var(--text-color);
+  padding: 0.15rem 0.5rem;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
 .threads-panel li:hover .thread-actions {
   visibility: visible;
+}
+
+.panel-title {
+  display: flex;
+  align-items: center;
+}
+
+.title-icon {
+  margin-right: 0.5rem;
 }
 
 .rename-input {
@@ -389,7 +470,7 @@ h2 {
 
 /* Custom scrollbar for settings */
 .settings-content::-webkit-scrollbar {
-  width: 8px;
+  width: 4px;
 }
 
 .settings-content::-webkit-scrollbar-track {
@@ -443,11 +524,11 @@ h2 {
   border-radius: 12px;
   padding: 1rem;
   margin-bottom: 1.5rem;
-  transition: box-shadow 0.3s ease;
+  transition: border-color 0.3s ease;
 }
 
-.setting-item:focus-within {
-    box-shadow: 0 0 0 2px var(--primary-color);
+.setting-item:hover {
+    border-color: var(--primary-color);
 }
 
 .setting-item h3 {
@@ -506,7 +587,7 @@ h2 {
 
 .setting-item button {
   border: none;
-  background-color: var(--input-background);
+  background-color: var(--hover-color);
   color: var(--text-color);
   border-radius: 8px;
   padding: 0.6rem 1.2rem;
@@ -535,3 +616,73 @@ h2 {
     background-color: var(--border-color);
     cursor: not-allowed;
 }
+
+.model-item.active-model-chat {
+  background-color: #a9967f;
+  color: white;
+}
+
+.model-item.active-model-embedding {
+  background-color: #71b34f;
+  color: white;
+}
+
+.model-label-chat {
+    font-style: italic;
+    margin-left: auto;
+    padding-left: 10px;
+}
+
+.model-label-embedding {
+    font-style: italic;
+    margin-left: auto;
+    padding-left: 10px;
+}
+
+.document-in-thread {
+  background-color: rgba(169, 150, 127, 0.2);
+}
+
+.search-bar-container {
+  margin-bottom: 1rem;
+}
+
+.search-input {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  background-color: var(--input-background);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  color: var(--text-color);
+  font-size: 0.9rem;
+  box-sizing: border-box;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+}
+
+.message-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.delete-message-btn {
+  visibility: hidden;
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  margin-right: 5px;
+}
+
+.message-container:hover .delete-message-btn {
+  visibility: visible;
+}
+
+.message.user + .delete-message-btn {
+  right: calc(100% - 20px);
+}
+

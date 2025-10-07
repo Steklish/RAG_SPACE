@@ -4,7 +4,7 @@ import MessageList from './MessageList';
 import ChatInput from './ChatInput';
 import LoadingIndicator from './LoadingIndicator';
 
-function Chat({ currentThread }) {
+function Chat({ currentThread, onThreadUpdate }) {
   const [messages, setMessages] = useState([]);
   const [isStreaming, setIsStreaming] = useState(false);
 
@@ -12,14 +12,25 @@ function Chat({ currentThread }) {
     if (currentThread) {
       const formattedHistory = (currentThread.history || []).map((msg, index) => ({
         id: `hist-${index}`,
-        text: msg,
-        sender: index % 2 === 0 ? 'user' : 'bot',
+        text: msg.content,
+        sender: msg.sender,
+        retrieved_docs: msg.retrieved_docs || [],
       }));
       setMessages(formattedHistory);
     } else {
       setMessages([]);
     }
   }, [currentThread]);
+
+  const handleDeleteMessage = async (messageIndex) => {
+    if (!currentThread) return;
+    try {
+      await axios.delete(`${import.meta.env.VITE_API_BASE_URL}/api/threads/${currentThread.id}/messages/${messageIndex}`);
+      onThreadUpdate(); // Refetch thread details to update the message list
+    } catch (error) {
+      console.error("Error deleting message:", error);
+    }
+  };
 
   const handleSendMessage = (text) => {
     if (!currentThread) return;
@@ -29,7 +40,7 @@ function Chat({ currentThread }) {
     setIsStreaming(true);
 
     const url = `${import.meta.env.VITE_API_BASE_URL}/api/threads/${currentThread.id}/chat`;
-    const botMessage = { id: Date.now() + 1, text: '', sender: 'bot' };
+    const botMessage = { id: Date.now() + 1, text: '', sender: 'agent', retrieved_docs: [] };
     
     // Add a placeholder for the bot's message immediately
     setMessages(prev => [...prev, botMessage]);
@@ -60,13 +71,11 @@ function Chat({ currentThread }) {
           jsonStrings.forEach(jsonStr => {
             try {
               const eventData = JSON.parse(jsonStr);
-              if (eventData.type === 'chunk') {
-                setMessages(prev => prev.map(msg => 
-                  msg.id === botMessage.id 
-                  ? { ...msg, text: msg.text + eventData.data }
-                  : msg
-                ));
-              }
+              setMessages(prev => prev.map(msg => 
+                msg.id === botMessage.id 
+                ? { ...msg, text: msg.text + eventData.answer, retrieved_docs: eventData.retrieved_docs || [] }
+                : msg
+              ));
             } catch (e) {
               // Ignore parsing errors
             }
@@ -91,7 +100,7 @@ function Chat({ currentThread }) {
     <div className="chat-panel">
       {currentThread ? (
         <>
-          <MessageList messages={messages} />
+          <MessageList messages={messages} onDeleteMessage={handleDeleteMessage} />
           {isStreaming && <LoadingIndicator />}
           <ChatInput onSendMessage={handleSendMessage} disabled={isStreaming} />
         </>

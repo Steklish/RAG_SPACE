@@ -58,7 +58,7 @@ class IntentAnalysis(BaseModel):
     """
     Represents the intent analysis of a user query.
     """
-    intent: str = Field(description="The identified intent of the user's query based on the previous conversation context.")
+    intent: str = Field(description="User query, saturated with context and details needed for information retrieval.")
     need_for_retrieval: bool = Field(description="Whether retrieval of documents is necessary to answer the query.")
     
 class ResponseWithRetrieval(BaseModel):
@@ -74,20 +74,40 @@ class ResponseWithoutRetrieval(BaseModel):
     """
     answer: str = Field(description="The generated answer to the user's query.")
     
+from typing import Union
+
+class UserMessage(BaseModel):
+    sender: Literal["user"]
+    content: str
+
+class RetrievedDocument(BaseModel):
+    id: str
+    name: str
+
+class AgentMessage(BaseModel):
+    sender: Literal["agent"]
+    content: str
+    retrieved_docs: Optional[List[RetrievedDocument]] = None
+
+Message = Union[UserMessage, AgentMessage]
+
 class Thread(BaseModel):
     id: str
     name: str
     created_at: datetime
-    history: List[str]
-    document_ids: List[str]
+    history: List[Message] = Field(default_factory=list)
     metadata: Dict[str, Any]
+    document_ids: List[str] = []
     
     
-class UserMessage(BaseModel):
+class UserMessageRequest(BaseModel):
     content: str
 
 class ThreadName(BaseModel):
     name: str
+
+class LanguageRequest(BaseModel):
+    language: str
 
     
 class DocumentId(BaseModel):
@@ -102,3 +122,7 @@ class ChunkQueryResult(BaseModel):
     text: str
     metadata: Dict[str, Any]
     distance: float
+
+class AgentResponse(BaseModel):
+    answer: str
+    retrieved_docs: Optional[List[RetrievedDocument]] = None
