@@ -5,7 +5,7 @@ import ChatInput from './ChatInput';
 import LoadingIndicator from './LoadingIndicator';
 import axios from 'axios';
 
-function Chat({ currentThread, onThreadUpdate }) {
+function Chat({ currentThread, onThreadUpdate, disabled }) {
   const [messages, setMessages] = useState([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
@@ -112,7 +112,7 @@ function Chat({ currentThread, onThreadUpdate }) {
         <>
           <MessageList messages={messages} onDeleteMessage={handleDeleteMessage} isThinking={isThinking} />
           {isStreaming && <LoadingIndicator />}
-          <ChatInput onSendMessage={handleSendMessage} disabled={isStreaming} />
+          <ChatInput onSendMessage={handleSendMessage} disabled={isStreaming || disabled} />
         </>
       ) : (
         <div className="empty-state centered">

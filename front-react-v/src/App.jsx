@@ -5,11 +5,30 @@ import Threads from './components/Threads';
 import Chat from './components/Chat';
 import DocumentManagement from './components/DocumentManagement';
 import Settings from './components/Settings';
+import LoadingIndicator from './components/LoadingIndicator';
 import './App.css';
 
 function App() {
   const [currentThread, setCurrentThread] = useState(null);
   const [currentThreadDetails, setCurrentThreadDetails] = useState(null);
+  const [serverStatus, setServerStatus] = useState('loading');
+
+  useEffect(() => {
+    const pollStatus = async () => {
+      try {
+        const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/api/status`);
+        if (response.data.status === 'ready' || response.data.status === 'error') {
+          setServerStatus(response.data.status);
+        } else {
+          setTimeout(pollStatus, 2000);
+        }
+      } catch (error) {
+        console.error("Error polling server status:", error);
+        setServerStatus('error');
+      }
+    };
+    pollStatus();
+  }, []);
 
   const fetchThreadDetails = useCallback(async () => {
     if (currentThread) {
@@ -28,6 +47,14 @@ function App() {
   useEffect(() => {
     fetchThreadDetails();
   }, [fetchThreadDetails]);
+
+  if (serverStatus === 'loading') {
+    return <LoadingIndicator />;
+  }
+
+  if (serverStatus === 'error') {
+    return <div className="app-container">Error connecting to the server. Please check the server logs.</div>;
+  }
 
   return (
     <Split
@@ -52,11 +79,12 @@ function App() {
           currentThread={currentThread}
           setCurrentThread={setCurrentThread} 
         />
-        <Settings currentThread={currentThreadDetails} />
+        <Settings currentThread={currentThreadDetails} disabled={serverStatus !== 'ready'} />
       </Split>
       <Chat 
         currentThread={currentThreadDetails}
         onThreadUpdate={fetchThreadDetails}
+        disabled={serverStatus !== 'ready'}
       />
       <DocumentManagement 
         currentThread={currentThreadDetails}

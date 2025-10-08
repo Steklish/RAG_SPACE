@@ -1,14 +1,13 @@
 import React from 'react';
 import './LoadingIndicator.css';
 
-function LoadingIndicator() {
+const LoadingIndicator = () => {
   return (
-    <div className="typing-indicator">
-      <span></span>
-      <span></span>
-      <span></span>
+    <div className="loading-container">
+      <div className="loading-spinner"></div>
+      <p>Loading model...</p>
     </div>
   );
-}
+};
 
 export default LoadingIndicator;

@@ -4,7 +4,7 @@ import axios from 'axios';
 import JsonEditPopup from './JsonEditPopup';
 import './JsonEditPopup.css';
 
-function Settings() {
+function Settings({ disabled }) {
   const [chatModel, setChatModel] = useState('');
   const [embeddingModel, setEmbeddingModel] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -132,7 +132,7 @@ function Settings() {
           <>
             <div className="setting-item">
               <h3>Language</h3>
-              <select value={language} onChange={handleLanguageChange}>
+              <select value={language} onChange={handleLanguageChange} disabled={disabled}>
                 <option value="Russian">Russian</option>
                 <option value="English">English</option>
               </select>
@@ -156,6 +156,7 @@ function Settings() {
                     setSelectedChatConfig(parseInt(e.target.value, 10));
                   }
                 }}
+                disabled={disabled}
               >
                 {serverConfigs.chat.map((config, index) => (
                   <option key={index} value={index}>{config.name}</option>
@@ -164,12 +165,12 @@ function Settings() {
               </select>
               {!serverStatus.chat ? (
                 <div className="button-group">
-                  <button onClick={() => handleServerAction('chat', 'chat_server.json', 'start')}>Start</button>
+                  <button onClick={() => handleServerAction('chat', 'chat_server.json', 'start')} disabled={disabled}>Start</button>
                 </div>
               ) : (
                 <div className="button-group">
-                  <button className="stop-button" onClick={() => handleServerAction('chat', 'chat_server.json', 'stop')}>Stop</button>
-                  <button onClick={() => handleServerAction('chat', 'chat_server.json', 'update_config', selectedChatConfig)}>Save & Restart</button>
+                  <button className="stop-button" onClick={() => handleServerAction('chat', 'chat_server.json', 'stop')} disabled={disabled}>Stop</button>
+                  <button onClick={() => handleServerAction('chat', 'chat_server.json', 'update_config', selectedChatConfig)} disabled={disabled}>Save & Restart</button>
                 </div>
               )}
             </div>
@@ -194,6 +195,7 @@ function Settings() {
                     setSelectedEmbeddingConfig(parseInt(e.target.value, 10));
                   }
                 }}
+                disabled={disabled}
               >
                 {serverConfigs.embedding.map((config, index) => (
                   <option key={index} value={index}>{config.name}</option>
@@ -202,12 +204,12 @@ function Settings() {
               </select>
               {!serverStatus.embedding ? (
                 <div className="button-group">
-                  <button onClick={() => handleServerAction('embedding', 'embedding_server.json', 'start')}>Start</button>
+                  <button onClick={() => handleServerAction('embedding', 'embedding_server.json', 'start')} disabled={disabled}>Start</button>
                 </div>
               ) : (
                 <div className="button-group">
-                  <button className="stop-button" onClick={() => handleServerAction('embedding', 'embedding_server.json', 'stop')}>Stop</button>
-                  <button onClick={() => handleServerAction('embedding', 'embedding_server.json', 'update_config', selectedEmbeddingConfig)}>Save & Restart</button>
+                  <button className="stop-button" onClick={() => handleServerAction('embedding', 'embedding_server.json', 'stop')} disabled={disabled}>Stop</button>
+                  <button onClick={() => handleServerAction('embedding', 'embedding_server.json', 'update_config', selectedEmbeddingConfig)} disabled={disabled}>Save & Restart</button>
                 </div>
               )}
             </div>

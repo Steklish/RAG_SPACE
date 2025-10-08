@@ -54,15 +54,37 @@ LAUNCH_CONFIG_DIR = "./app/launch_configs"
 app = FastAPI(title="RAGgie BOY", version="0.0.1")
 
 server_launcher = ServerLauncher()
+model_status = "loading"
+
+async def start_servers_in_background():
+    global model_status
+    if os.getenv("START_SERVERS", "true").lower() != "false":
+        server_launcher.start_all_servers()
+        
+        # Health check loop
+        for _ in range(30):  # 30 retries, 2 seconds apart = 1 minute timeout
+            try:
+                async with httpx.AsyncClient() as client:
+                    response = await client.get(f"{LLAMACPP_CHAT_BASE}/health")
+                    if response.status_code == 200:
+                        model_status = "ready"
+                        return
+            except httpx.RequestError:
+                pass
+            await asyncio.sleep(2)
+        model_status = "error"
 
 @app.on_event("startup")
 async def startup_event():
-    if os.getenv("START_SERVERS", "true").lower() != "false":
-        server_launcher.start_all_servers()
+    asyncio.create_task(start_servers_in_background())
 
 @app.on_event("shutdown")
 async def shutdown_event():
     server_launcher.stop_all_servers()
+
+@app.get("/api/status")
+async def get_status():
+    return safe_json({"status": model_status})
 
 app.add_middleware(
     CORSMiddleware,

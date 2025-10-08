@@ -10,7 +10,7 @@ class ServerLauncher:
         self.processes: Dict[str, subprocess.Popen] = {}
 
     def get_available_configs(self) -> Dict[str, List[Dict]]:
-        configs = {"chat": [], "embedding": []}
+        configs = {"chat": [], "embedding": []} 
         if not os.path.exists(self.config_dir):
             return configs
         
