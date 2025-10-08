@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import MessageList from './MessageList';
 import ChatInput from './ChatInput';
 import LoadingIndicator from './LoadingIndicator';
+import axios from 'axios';
 
 function Chat({ currentThread, onThreadUpdate }) {
   const [messages, setMessages] = useState([]);
@@ -67,12 +68,12 @@ function Chat({ currentThread, onThreadUpdate }) {
           
           const chunk = decoder.decode(value, { stream: true });
           const jsonStrings = chunk.replace(/^data: /, '').split('\n\n').filter(s => s);
-          
           jsonStrings.forEach(jsonStr => {
-            try {
-              const eventData = JSON.parse(jsonStr);
+			  try {
+				  const eventData = JSON.parse(JSON.parse(jsonStr).data);
+				  console.log(eventData)
               setMessages(prev => prev.map(msg => 
-                msg.id === botMessage.id 
+				msg.id === botMessage.id 
                 ? { ...msg, text: msg.text + eventData.answer, retrieved_docs: eventData.retrieved_docs || [] }
                 : msg
               ));

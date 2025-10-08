@@ -5,7 +5,7 @@ from typing import Dict, Any
 class SettingsStore:
     def __init__(self, storage_path: str = "storage/settings.json"):
         self.storage_path = storage_path
-        self.defaults = {"language": "English"}
+        self.defaults = {"language": "Russian"}
         if not os.path.exists(os.path.dirname(storage_path)):
             os.makedirs(os.path.dirname(storage_path), exist_ok=True)
 

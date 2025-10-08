@@ -8,7 +8,7 @@ from app.schemas import *
 MAX_ITERATIONS = 3
 
 class Agent:
-    def __init__(self, generator: LocalGenerator, chroma_client: ChromaClient, thread_store : ThreadStore, language : str = "Русский"):
+    def __init__(self, generator: LocalGenerator, chroma_client: ChromaClient, thread_store : ThreadStore, language : str = "Russian"):
         self.generator = generator
         self.chroma_client = chroma_client
         self.thread_store = thread_store  

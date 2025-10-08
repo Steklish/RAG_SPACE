@@ -17,7 +17,7 @@ function Settings() {
   const [launchConfigs, setLaunchConfigs] = useState([]);
   const [showJsonPopup, setShowJsonPopup] = useState(false);
   const [editingConfigName, setEditingConfigName] = useState('');
-  const [language, setLanguage] = useState('English');
+  const [language, setLanguage] = useState('Russian');
 
   const fetchServerStatus = useCallback(async () => {
     try {

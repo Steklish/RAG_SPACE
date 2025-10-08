@@ -77,19 +77,10 @@ embed_client = EmbeddingClient(LLAMACPP_EMBED_BASE)
 chroma_client = ChromaClient(embed_client, CHROMA_PERSIST_DIR)
 thread_store = ThreadStore()
 settings_store = SettingsStore()
-agent = Agent(llm_client, chroma_client, thread_store)
+initial_settings = settings_store.get_settings()
+agent = Agent(llm_client, chroma_client, thread_store, language=initial_settings.get("language", "Russian"))
 
-class ServerStartRequest(BaseModel):
-    server_type: str
-    config_name: str
 
-class ServerStopRequest(BaseModel):
-    server_type: str
-
-class ServerUpdateConfig(BaseModel):
-    server_type: str
-    config_name: str
-    config_index: int
 
 @app.get("/api/servers/configs")
 def get_server_configs():
@@ -315,6 +306,8 @@ async def chat_in_thread(thread_id: str, message: UserMessageRequest):
     try:
         def stream_generator():
             for chunk in agent.user_query(message.content, thread_id):
+                # Log the chunk before sending it
+                print(f"Sending chunk: {chunk}")
                 yield f"data: {json.dumps({'type': 'chunk', 'data': chunk}, ensure_ascii=False)}\n\n"
         
         return StreamingResponse(stream_generator(), media_type="text/event-stream")
@@ -337,6 +330,14 @@ async def remove_document_from_thread_endpoint(thread_id: str, document_id: str)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
+@app.delete("/api/threads/{thread_id}/messages/{message_index}")
+async def delete_message_from_thread(thread_id: str, message_index: int):
+    try:
+        thread_store.delete_message(thread_id, message_index)
+        return safe_json({"status": "success"})
+    except (ValueError, IndexError) as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
 
 # =========================
 # SETTINGS
@@ -347,18 +348,22 @@ def get_settings():
     """
     Provides a consolidated endpoint for all settings.
     """
+    stored_settings = settings_store.get_settings()
     settings = {
-        "chat_model": llm_client.get_model_info(),
+        "chat_model": {"model": llm_client._get_model_from_server()},
         "embedding_model": {"model": embed_client._get_model_from_server()},
         "server_configs": server_launcher.get_available_configs(),
         "active_configs": server_launcher.get_active_configs(),
-        "launch_configs": [f for f in os.listdir(LAUNCH_CONFIG_DIR) if f.endswith('.json')]
+        "launch_configs": [f for f in os.listdir(LAUNCH_CONFIG_DIR) if f.endswith('.json')],
+        "language": stored_settings.get("language", "Russian")
     }
     return safe_json(settings)
 
 @app.put("/api/settings")
 def update_settings(settings: Dict[str, Any]):
     current_settings = settings_store.get_settings()
+    if "language" in settings:
+        agent.language = settings["language"]
     current_settings.update(settings)
     settings_store.save_settings(current_settings)
     return safe_json({"status": "success", "settings": current_settings})

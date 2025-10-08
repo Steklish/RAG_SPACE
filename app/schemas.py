@@ -126,3 +126,16 @@ class ChunkQueryResult(BaseModel):
 class AgentResponse(BaseModel):
     answer: str
     retrieved_docs: Optional[List[RetrievedDocument]] = None
+    
+    
+class ServerStartRequest(BaseModel):
+    server_type: str
+    config_name: str
+
+class ServerStopRequest(BaseModel):
+    server_type: str
+
+class ServerUpdateConfig(BaseModel):
+    server_type: str
+    config_name: str
+    config_index: int
