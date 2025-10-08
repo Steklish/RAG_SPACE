@@ -58,7 +58,7 @@ class IntentAnalysis(BaseModel):
     """
     Represents the intent analysis of a user query.
     """
-    intent: str = Field(description="User query, saturated with context and details needed for information retrieval.")
+    intent: str = Field(description="The context-rich, rewritten query suitable for vector search.")
     need_for_retrieval: bool = Field(description="Whether retrieval of documents is necessary to answer the query.")
     
 class ResponseWithRetrieval(BaseModel):
@@ -88,6 +88,7 @@ class AgentMessage(BaseModel):
     sender: Literal["agent"]
     content: str
     retrieved_docs: Optional[List[RetrievedDocument]] = None
+    follow_up: Optional[bool] = None
 
 Message = Union[UserMessage, AgentMessage]
 
@@ -126,6 +127,7 @@ class ChunkQueryResult(BaseModel):
 class AgentResponse(BaseModel):
     answer: str
     retrieved_docs: Optional[List[RetrievedDocument]] = None
+    follow_up: Optional[bool] = None
     
     
 class ServerStartRequest(BaseModel):

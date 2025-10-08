@@ -8,6 +8,7 @@ import axios from 'axios';
 function Chat({ currentThread, onThreadUpdate }) {
   const [messages, setMessages] = useState([]);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [isThinking, setIsThinking] = useState(false);
 
   useEffect(() => {
     if (currentThread) {
@@ -16,6 +17,7 @@ function Chat({ currentThread, onThreadUpdate }) {
         text: msg.content,
         sender: msg.sender,
         retrieved_docs: msg.retrieved_docs || [],
+        follow_up: msg.follow_up || false,
       }));
       setMessages(formattedHistory);
     } else {
@@ -39,9 +41,10 @@ function Chat({ currentThread, onThreadUpdate }) {
     const userMessage = { id: Date.now(), text, sender: 'user' };
     setMessages(prevMessages => [...prevMessages, userMessage]);
     setIsStreaming(true);
+    setIsThinking(false);
 
     const url = `${import.meta.env.VITE_API_BASE_URL}/api/threads/${currentThread.id}/chat`;
-    const botMessage = { id: Date.now() + 1, text: '', sender: 'agent', retrieved_docs: [] };
+    const botMessage = { id: Date.now() + 1, text: '', sender: 'agent', retrieved_docs: [], follow_up: false };
     
     // Add a placeholder for the bot's message immediately
     setMessages(prev => [...prev, botMessage]);
@@ -71,10 +74,15 @@ function Chat({ currentThread, onThreadUpdate }) {
           jsonStrings.forEach(jsonStr => {
 			  try {
 				  const eventData = JSON.parse(JSON.parse(jsonStr).data);
+                  if (eventData.answer.startsWith('<internal>')) {
+                    setIsThinking(true);
+                    return; // Don't display internal messages
+                  }
+                  setIsThinking(false);
 				  console.log(eventData)
               setMessages(prev => prev.map(msg => 
 				msg.id === botMessage.id 
-                ? { ...msg, text: msg.text + eventData.answer, retrieved_docs: eventData.retrieved_docs || [] }
+                ? { ...msg, text: msg.text + eventData.answer, retrieved_docs: eventData.retrieved_docs || [], follow_up: eventData.follow_up || false }
                 : msg
               ));
             } catch (e) {
@@ -91,6 +99,7 @@ function Chat({ currentThread, onThreadUpdate }) {
         ));
       } finally {
         setIsStreaming(false);
+        setIsThinking(false);
       }
     };
     
@@ -101,7 +110,7 @@ function Chat({ currentThread, onThreadUpdate }) {
     <div className="chat-panel">
       {currentThread ? (
         <>
-          <MessageList messages={messages} onDeleteMessage={handleDeleteMessage} />
+          <MessageList messages={messages} onDeleteMessage={handleDeleteMessage} isThinking={isThinking} />
           {isStreaming && <LoadingIndicator />}
           <ChatInput onSendMessage={handleSendMessage} disabled={isStreaming} />
         </>

@@ -1,7 +1,8 @@
 import React, { useEffect, useRef } from 'react';
 import { FileText, Trash2 } from 'lucide-react';
+import LoadingIndicator from './LoadingIndicator';
 
-const MessageList = ({ messages, onDeleteMessage }) => {
+const MessageList = ({ messages, onDeleteMessage, isThinking }) => {
   const messagesEndRef = useRef(null);
 
   const scrollToBottom = () => {
@@ -10,13 +11,13 @@ const MessageList = ({ messages, onDeleteMessage }) => {
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+  }, [messages, isThinking]);
 
   return (
     <div className="message-list">
       {messages.map((msg, index) => (
         <div key={index} className="message-container">
-          <div className={`message ${msg.sender}`}>
+          <div className={`message ${msg.sender} ${msg.follow_up ? 'follow-up' : ''}`}>
             {msg.text}
             {msg.sender === 'agent' && msg.retrieved_docs && Array.isArray(msg.retrieved_docs) && msg.retrieved_docs.length > 0 && (
               <div className="retrieved-docs">
@@ -42,6 +43,7 @@ const MessageList = ({ messages, onDeleteMessage }) => {
           </button>
         </div>
       ))}
+      {isThinking && <LoadingIndicator />}
       <div ref={messagesEndRef} />
     </div>
   );

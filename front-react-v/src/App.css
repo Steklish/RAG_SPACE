@@ -88,6 +88,12 @@ h2 {
   border-bottom-left-radius: 0.5rem;
 }
 
+.message.follow-up {
+  max-width: 70%;
+  border-left: 3px solid var(--primary-color);
+  font-size: 0.9rem;
+}
+
 .retrieved-docs {
   margin-top: 1rem;
   border-top: 1px solid var(--border-color);
@@ -189,12 +195,12 @@ h2 {
 }
 
 .threads-panel li.active {
-  background-color: var(--primary-color);
+  background-color: var(--primary-color-fade);
   color: white;
 }
 
 .threads-panel li.active .doc-count-badge {
-  background-color: var(--primary-color-fade);
+  background-color: var(--border-color);
   color: var(--primary-color);
 }
 
@@ -640,7 +646,7 @@ h2 {
 }
 
 .document-in-thread {
-  background-color: rgba(169, 150, 127, 0.2);
+  border: 1px solid var(--border-color);
 }
 
 .search-bar-container {
