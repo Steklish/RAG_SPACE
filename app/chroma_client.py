@@ -230,6 +230,7 @@ class ChromaClient:
         where_filter = None
         if doc_ids:
             where_filter = {"doc_id": {"$in": doc_ids}}
+        print("Searching docs with filters", where_filter   )
         results = self.collection.query(
             query_embeddings=[query_embedding],
             n_results=top_k,

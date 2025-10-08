@@ -80,7 +80,7 @@ class Agent:
         
         intent = self.user_intent(thread)
         
-        if intent.need_for_retrieval:
+        if intent.need_for_retrieval and thread.document_ids:
             print(f"{INFO_COLOR} RAG USED {Colors.RESET}")
             retrieved_chunks_data = self.chroma_client.search_chunks(
                 query_text=intent.intent,
