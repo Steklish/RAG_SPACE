@@ -1,5 +1,5 @@
 {
-    "active_config": 0,
+    "active_config": 1,
     "configs": [
         {
             "name": "THE_OTHER",
@@ -20,7 +20,7 @@
             "command": "llama-server.exe",
             "args": [
                 "--model",
-                "models/gemma-3-1B-it-QAT-Q4_0.gguf",
+                "models/gemma-3n-E2B-it-Q4_K_S.gguf",
                 "--n_gpu_layers",
                 "999",
                 "--port",

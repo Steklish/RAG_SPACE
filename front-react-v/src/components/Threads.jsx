@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { Edit2, MessageSquare } from 'lucide-react';
 
-function Threads({ currentThread, setCurrentThread }) {
+function Threads({ currentThread, setCurrentThread, currentThreadDetails, threadsVersion }) {
   const [threads, setThreads] = useState([]);
   const [editingThreadId, setEditingThreadId] = useState(null);
   const [editingName, setEditingName] = useState('');
@@ -20,7 +20,24 @@ function Threads({ currentThread, setCurrentThread }) {
 
   useEffect(() => {
     fetchThreads();
-  }, []);
+  }, [threadsVersion]);
+
+  useEffect(() => {
+    if (currentThreadDetails) {
+      setThreads(prevThreads =>
+        prevThreads.map(thread => {
+          if (thread.id === currentThreadDetails.id) {
+            const updatedThread = { ...thread, ...currentThreadDetails };
+            if (currentThreadDetails.document_ids) {
+              updatedThread.document_count = currentThreadDetails.document_ids.length;
+            }
+            return updatedThread;
+          }
+          return thread;
+        })
+      );
+    }
+  }, [currentThreadDetails]);
 
   const createNewThread = async () => {
     try {

@@ -90,10 +90,12 @@ class EmbeddingClient:
             print(response)
             response.raise_for_status()
             models = response.json().get("data", [])
-            return models[0]["id"][models[0]["id"].rfind("\\") + 1:]
+            if models:
+                return models[0]["id"][models[0]["id"].rfind("\\") + 1:]
+            return "No models found"
         except requests.exceptions.RequestException as e:
             print(f"Error fetching models from server: {e}")
-            return []
+            return "Not available"
     
 if __name__ == "__main__":
     # Example usage

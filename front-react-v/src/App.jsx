@@ -12,6 +12,11 @@ function App() {
   const [currentThread, setCurrentThread] = useState(null);
   const [currentThreadDetails, setCurrentThreadDetails] = useState(null);
   const [serverStatus, setServerStatus] = useState('loading');
+  const [threadsVersion, setThreadsVersion] = useState(0);
+
+  const forceThreadsRefetch = () => {
+    setThreadsVersion(v => v + 1);
+  };
 
   useEffect(() => {
     const pollStatus = async () => {
@@ -78,8 +83,10 @@ function App() {
         <Threads 
           currentThread={currentThread}
           setCurrentThread={setCurrentThread} 
+          currentThreadDetails={currentThreadDetails}
+          threadsVersion={threadsVersion}
         />
-        <Settings currentThread={currentThreadDetails} disabled={serverStatus !== 'ready'} />
+        <Settings disabled={serverStatus !== 'ready'} />
       </Split>
       <Chat 
         currentThread={currentThreadDetails}
@@ -88,7 +95,8 @@ function App() {
       />
       <DocumentManagement 
         currentThread={currentThreadDetails}
-        onThreadUpdate={fetchThreadDetails} // Pass the callback here
+        onThreadUpdate={fetchThreadDetails}
+        onDocumentChange={forceThreadsRefetch}
       />
     </Split>
   );

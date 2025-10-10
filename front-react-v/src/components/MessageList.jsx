@@ -1,8 +1,9 @@
 import React, { useEffect, useRef } from 'react';
+import ReactMarkdown from 'react-markdown';
 import { FileText, Trash2 } from 'lucide-react';
 import LoadingIndicator from './LoadingIndicator';
 
-const MessageList = ({ messages, onDeleteMessage, isThinking }) => {
+const MessageList = ({ messages, onDeleteMessage, isStreaming }) => {
   const messagesEndRef = useRef(null);
 
   const scrollToBottom = () => {
@@ -11,14 +12,14 @@ const MessageList = ({ messages, onDeleteMessage, isThinking }) => {
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages, isThinking]);
+  }, [messages, isStreaming]);
 
   return (
     <div className="message-list">
       {messages.map((msg, index) => (
         <div key={index} className="message-container">
           <div className={`message ${msg.sender} ${msg.follow_up ? 'follow-up' : ''}`}>
-            {msg.text}
+            <ReactMarkdown>{msg.text}</ReactMarkdown>
             {msg.sender === 'agent' && msg.retrieved_docs && Array.isArray(msg.retrieved_docs) && msg.retrieved_docs.length > 0 && (
               <div className="retrieved-docs">
                 <strong>Sources:</strong>
@@ -43,7 +44,7 @@ const MessageList = ({ messages, onDeleteMessage, isThinking }) => {
           </button>
         </div>
       ))}
-      {isThinking && <LoadingIndicator />}
+      {isStreaming && <LoadingIndicator />}
       <div ref={messagesEndRef} />
     </div>
   );

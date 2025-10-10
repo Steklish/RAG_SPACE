@@ -1,9 +1,11 @@
 from datetime import datetime
+import os
 from pydantic import BaseModel, Field
 from typing import List, Dict, Any, Literal, Optional
 
 StatusType = Literal["completed", "error"]
 
+MODEL_ROLE = os.getenv("MODEL_ROLE", "model")
 
 class Document(BaseModel):
     id: str
@@ -58,7 +60,7 @@ class IntentAnalysis(BaseModel):
     """
     Represents the intent analysis of a user query.
     """
-    intent: str = Field(description="The context-rich, rewritten query suitable for vector search.")
+    enhanced_query: str = Field(description="The context-enrichen, rewritten query with a lot of details.")
     need_for_retrieval: bool = Field(description="Whether retrieval of documents is necessary to answer the query.")
     
 class ResponseWithRetrieval(BaseModel):
@@ -141,3 +143,21 @@ class ServerUpdateConfig(BaseModel):
     server_type: str
     config_name: str
     config_index: int
+    
+class UserLamaMessage(BaseModel):
+    role : str = Field(default="user", description="User role")
+    content : str = Field(description="User message content")
+    
+class SystemLamaMessage(BaseModel):
+    role : str = Field(default="system", description="System role")
+    content : str = Field(description="System message content")
+
+class ModelLamaMessage(BaseModel):
+    role : str = Field(default=MODEL_ROLE, description="Model role")
+    content : str = Field(description="Model message content")
+    
+class LLamaMessageHistory(BaseModel):
+    messages: List[Union[UserLamaMessage, SystemLamaMessage, ModelLamaMessage]] = Field(description="List of messages in the conversation history")
+    def to_dict(self) -> List[Dict[str, str]]:
+        
+        return [{"role" : message.role, "content" : message.content} for message in self.messages]

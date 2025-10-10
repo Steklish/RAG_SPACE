@@ -38,26 +38,12 @@ class ServerLauncher:
             json.dump(data, f, indent=4)
 
     def start_server(self, server_type: str, config_name: str) -> None:
-        if self.processes.get(server_type) and self.processes[server_type].poll() is None:
-            print(f"Server {server_type} is already running.")
-            return
-
-        config_data = self._load_config(config_name)
-        if config_data:
-            active_config_index = config_data.get("active_config", 0)
-            config = config_data["configs"][active_config_index]
-            
-            command = [config["command"]] + config["args"]
-            print(f"Starting {server_type} server with command: {' '.join(command)}")
-            process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            self.processes[server_type] = process
-            print(f"Server {server_type} ({config_name}) started with PID: {process.pid}")
+        print(f"Attempted to start server {server_type} with config {config_name}, but server management is disabled.")
+        pass
 
     def stop_server(self, server_type: str) -> None:
-        if server_type in self.processes:
-            self.processes[server_type].terminate()
-            del self.processes[server_type]
-            print(f"Server {server_type} stopped.")
+        print(f"Attempted to stop server {server_type}, but server management is disabled.")
+        pass
 
     def update_config(self, server_type: str, config_name: str, config_index: int) -> None:
         config_data = self._load_config(config_name)
@@ -70,16 +56,12 @@ class ServerLauncher:
                 self.start_server(server_type, config_name)
 
     def start_all_servers(self) -> None:
-        configs = self.get_available_configs()
-        if configs["chat"]:
-            self.start_server("chat", "chat_server.json")
-        if configs["embedding"]:
-            self.start_server("embedding", "embedding_server.json")
+        print("Attempted to start all servers, but server management is disabled.")
+        pass
 
     def stop_all_servers(self) -> None:
-        for server_type in list(self.processes.keys()):
-            self.stop_server(server_type)
-        print("All servers stopped.")
+        print("Attempted to stop all servers, but server management is disabled.")
+        pass
 
     def get_server_status(self) -> Dict[str, bool]:
         status = {}

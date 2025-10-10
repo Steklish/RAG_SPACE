@@ -1,3 +1,4 @@
+import time
 from app.chroma_client import ChromaClient
 from app.colors import INFO_COLOR, Colors
 from app.local_generator import LocalGenerator
@@ -13,35 +14,66 @@ class Agent:
         self.chroma_client = chroma_client
         self.thread_store = thread_store  
         self.language = language
-    def user_intent(self, thread : Thread) -> IntentAnalysis:
+        
+    def history_to_payload(self, thread: Thread) -> LLamaMessageHistory:
+        messages = []
+        for msg in thread.history:
+            if msg.sender == "user":
+                messages.append(UserLamaMessage(content=msg.content))
+            elif msg.sender == "agent":
+                messages.append(ModelLamaMessage(content=msg.content))
+            elif msg.sender == "system":
+                messages.append(SystemLamaMessage(content=msg.content))
+        return LLamaMessageHistory(messages=messages)
+        
+    def user_intent(self, thread : Thread, temperature:float = 0.5) -> IntentAnalysis:
         doc_list_text = ""
         for doc in self.chroma_client.get_all_documents():
-            if doc.get('id') in thread.document_ids:
+            if doc.get('id') in thread.document_ids: # type: ignore
                 doc_list_text += f"- {doc.get('name')}\n"
 
-        history = "\n".join([f"{'User' if msg.sender == 'user' else 'Agent'}: {msg.content}" for msg in thread.history])
 
-        
-        prompt = (
-            f"You are an expert at query expansion. Rewrite the user's query by enriching it with context "
-            f"from the conversation history and available documents. The rewritten query should be a single, "
-            f"self-contained question or statement optimized for semantic search."
-            f"You also need to determine if the user's query can be answered directly without retrieval. If not need_for_retrieval should be true.\n\n"
-            f"**Chat History:**\n{history}\n\n"
-            f"**Available Documents:**\n{doc_list_text}\n\n"
-            f"**User Query:** \"{thread.history[-1].content}\"\n\n"
-            f"**Optimized Query:**"
+        example_query = [{'role': 'user', 'content': 'опиши по порядку все содержание файла ПЗ'}, {'role': 'model', 'content': 'Пожалуйста, предоставьте больше информации о файле ПЗ.  Мне нужно знать, что это за файл.  В частности, мне нужно увидеть содержимое файла, чтобы я мог описать его функциональность и назначение.'},  {'role': 'model', 'content': 'Проект - устройство для измерения расстояний, использующее HC-SR04, предназначенное для работы с Raspberry Pi, с точностью до 4 м и низким уровнем стоимости.'}, {'role': 'user', 'content': 'hi there'}]
+        example_response = {
+            "enhanced_query": "Пользователь поприветствовал систему на английском языке, сказав «hi there», что не связано с предыдущим контекстом обсуждения проекта по измерению расстояний, не требует анализа содержимого файла ПЗ и не связан с техническими деталями проекта.",
+            "need_for_retrieval": False
+            }
+
+        system_prompt = (
+            f"""You are an expert at query expansion. Rewrite the user's query by enriching it with context 
+            If any documents are mentioned you MUST set `need_for_retrieval` to true.
+            from the conversation history and available documents. The rewritten query should be a single, 
+            self-contained question or statement. It should be detailed and specific, incorporating relevant information from the chat history and documents. It should be grammatically correct and coherent.\n\n
+            You also need to determine if the user's query can be answered directly without retrieval. If not need_for_retrieval should be true.\n\n
+            If user mentions any documant or topic from availabel or spmething that is not present in the current context you must set need_for_retrieval as true.
+            **Available Documents:**\n{doc_list_text}\n\n
+            Dont ask for more information, just rewrite the query.\n\n
+            <Example>
+            example query(conversation history): {example_query} 
+            example response: {example_response} 
+            </Example>
+            """
         )
-        print("Prompt for intent analysis:", prompt)
-        response: IntentAnalysis = self.generator.generate(
-            language=self.language,
+        
+        prompt = f"""
+        Here is the conversation history and you must determine what exactly user wants to get from the data retrieval system with their latest query.
+        <conversation history>
+        {self.history_to_payload(thread)}
+        </conversation history>
+        """ 
+        print("Prompt for intent analysis:", system_prompt)
+        print("History for intent analysis:", self.history_to_payload(thread).to_dict())
+        response: IntentAnalysis = self.generator.generate_one_shot(
+            system_prompt=system_prompt,
             prompt=prompt,
-            pydantic_model=IntentAnalysis
+            language=self.language,
+            pydantic_model=IntentAnalysis,
+            temperature=temperature
         )  
-        print(f"Identified intent: {response.intent}, Need for retrieval: {response.need_for_retrieval}")
+        print(f"Identified intent: {response.enhanced_query}, Need for retrieval: {response.need_for_retrieval}")
         return response
 
-    def user_query(self, user_input: str, thread_id: str, iterate: bool = True):
+    def user_query(self, user_input: str, thread_id: str, iterate: bool = True, temperature: float = 0.7):
         thread = self.thread_store.get_thread(thread_id)
         if not thread:
             raise ValueError("Thread not found")
@@ -54,42 +86,47 @@ class Agent:
         if enriched_query_obj.need_for_retrieval and thread.document_ids:
             print(f"{INFO_COLOR} RAG USED {Colors.RESET}")
             retrieved_chunks_data = self.chroma_client.search_chunks(
-                query_text=enriched_query_obj.intent, # Use the enriched query for search
+                query_text=enriched_query_obj.enhanced_query + " Оriginal text follows:" + thread.history[-1].content, # Use the enriched query for search
                 top_k=5,
                 doc_ids=thread.document_ids
             )
             chunks_text = "\n".join(
                 [f"<chunk index=\"{index}\" name=\"{chunk['metadata']['name']}\">\n{chunk['text']}\n</chunk>" for index, chunk in enumerate(retrieved_chunks_data)]
             )
-            
-            history = "\n".join([f"{'User' if msg.sender == 'user' else 'Agent'}: {msg.content}" for msg in thread.history])
 
-            # --- REWORKED PROMPT ---
-            prompt = (
-                f"You are an AI assistant that answers questions based ONLY on the provided context. Follow these steps:\n"
-                f"1. Synthesize a direct answer to the user's last query using the information in `<retrieved_chunks>`.\n"
-                f"2. At the end of each sentence that uses information from a chunk, you MUST cite it using its index, like this: `This is a fact.`.\n"
-                f"3. After writing the answer, determine if any part of the user's query remains unanswered. If another search could find more details, formulate a concise search query for the missing information in the `any_more_info_needed` field. If the answer is complete, leave that field empty.\n\n"
-                f"---\n\n"
-                f"**Chat History:**\n"
-                f"{history}\n\n"
-                f"**Retrieved Chunks:**\n"
-                f"{chunks_text}\n\n"
-                f"**User Query:** {thread.history[-1].content}"
+            system_prompt = (
+                f"""
+                You are an AI assistant that answers questions based ONLY on the provided context. Follow these steps:\n
+                1. Provide a concise, direct answer to the user's query based strictly on the information in `<likely_referenced_data>`. You are allowed to use  MarkDown tags only inside `answer` filed.\n
+                2. After answering, check if any part of the user's query remains unanswered.\n
+                3. For requesting additional details, generate a focused search query in the `any_more_info_needed` field for the next iteration.\n
+                if the answer is incomplete YOU MUST ITERATE and place in the `any_more_info_needed` field the information necessary to continue refining the answer in the next step.\n\n
+                <likely_referenced_data>
+                {chunks_text}\n\n
+                </likely_referenced_data>
+                """
             )
+            prompt = f"""
+            Here is the user query that you should fulfill using the information provided.
+            <user_query>
+            {enriched_query_obj.enhanced_query}
+            </user_query>
+            """ 
 
-            print("Prompt for response with retrieval:", prompt)
-            response = self.generator.generate(
-                language=self.language,
+            # print("Prompt for response with retrieval:", prompt)
+            response = self.generator.generate_one_shot(
+                system_prompt=system_prompt,
                 prompt=prompt,
-                pydantic_model=ResponseWithRetrieval)
+                language=self.language,
+                pydantic_model=ResponseWithRetrieval,
+                temperature=temperature)
             
             retrieved_docs_map = {chunk['metadata']['doc_id']: chunk['metadata']['name'] for chunk in retrieved_chunks_data}
             retrieved_docs = [RetrievedDocument(id=doc_id, name=name) for doc_id, name in retrieved_docs_map.items()]
 
             thread.history.append(AgentMessage(sender="agent", content=response.answer, retrieved_docs=retrieved_docs))
             
-            agent_response = AgentResponse(answer=response.answer, retrieved_docs=retrieved_docs)
+            agent_response = AgentResponse(answer=response.answer, retrieved_docs=retrieved_docs, follow_up=not(response.any_more_info_needed is None))
             yield agent_response.model_dump_json()
             
             if response.any_more_info_needed and iterate:
@@ -97,22 +134,19 @@ class Agent:
                 thread.history.append(AgentMessage(sender="agent", content=response.any_more_info_needed))
                 yield from self.agent_query(0, thread, response.any_more_info_needed)
         else:
-            # This branch remains the same, as it doesn't involve complex retrieval logic
-            history = "\n".join([f"{'User' if msg.sender == 'user' else 'Agent'}: {msg.content}" for msg in thread.history])
-            prompt = (
+            
+            print(f"{INFO_COLOR} NO RAG {Colors.RESET}")
+            system_prompt = (
                 f"You are a helpful assistant. Your task is to directly answer the user's question based on the provided chat history. "
                 f"Do not explain your reasoning process. Provide a direct answer in the `answer` field.\n\n"
-                f"<chat_history>\n"
-                f"{history}\n"
-                f"</chat_history>\n\n"
                 f"Based on the user query, provide a comprehensive answer."
-                f"<user_query> {thread.history[-1].content}\n </user_query>"
-                f"<user_intent> {enriched_query_obj.intent}\n </user_intent>"
             )
-            response = self.generator.generate(
+            response = self.generator.generate_with_payload(
+                system_prompt=system_prompt,
                 language=self.language,
-                prompt=prompt,
-                pydantic_model=ResponseWithoutRetrieval)
+                pydantic_model=ResponseWithoutRetrieval,
+                payload=self.history_to_payload(thread))
+            
             thread.history.append(AgentMessage(sender="agent", content=response.answer))
             yield AgentResponse(answer=response.answer).model_dump_json()
         self.thread_store.save_thread(thread)
@@ -135,24 +169,23 @@ class Agent:
         history = "\n".join([f"{'User' if msg.sender == 'user' else 'Agent'}: {msg.content}" for msg in thread.history])
         
         # --- REWORKED PROMPT ---
-        prompt = (
+        system_prompt = (
             f"You are in a research loop to answer the original user query. Use the newly retrieved chunks to improve the answer. Follow these steps:\n"
             f"1. Synthesize a complete and updated answer to the user's original query using the chat history and the new `<retrieved_chunks>`.\n"
             f"2. At the end of each sentence that uses information from a NEW chunk, you MUST cite it using its index, like this: `This is a new fact.`.\n"
             f"3. After writing the new, complete answer, determine if any part of the query *still* remains unanswered. If another search could find more details, formulate a new, concise search query for the missing information in `any_more_info_needed`. If the answer is now complete, leave that field empty.\n\n"
             f"---\n\n"
-            f"**Chat History (contains the original query):**\n"
-            f"{history}\n\n"
             f"**Newly Retrieved Chunks:**\n"
             f"{chunks_text}\n\n"
         )
 
-        response = self.generator.generate(
+        response = self.generator.generate_with_payload(
+            system_prompt=system_prompt,
             language=self.language,
-            prompt=prompt,
+            payload=self.history_to_payload(thread),
             pydantic_model=ResponseWithRetrieval)
         
-        print(f"Iteration {iteration} - Agent response: {response.answer}")
+        print(f"{INFO_COLOR}Iteration {iteration} {Colors.RESET} - Agent response: {response.answer}")
 
         retrieved_docs_map = {chunk['metadata']['doc_id']: chunk['metadata']['name'] for chunk in retrieved_chunks_data} # type: ignore
         retrieved_docs = [RetrievedDocument(id=doc_id, name=name) for doc_id, name in retrieved_docs_map.items()]

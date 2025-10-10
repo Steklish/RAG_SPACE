@@ -1,7 +1,6 @@
 /* eslint-disable no-unused-vars */
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
-import JsonEditPopup from './JsonEditPopup';
 import './JsonEditPopup.css';
 
 function Settings({ disabled }) {
@@ -9,55 +8,24 @@ function Settings({ disabled }) {
   const [embeddingModel, setEmbeddingModel] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
-
-  const [serverConfigs, setServerConfigs] = useState({ chat: [], embedding: [] });
-  const [selectedChatConfig, setSelectedChatConfig] = useState('');
-  const [selectedEmbeddingConfig, setSelectedEmbeddingConfig] = useState('');
-  const [serverStatus, setServerStatus] = useState({});
-  const [launchConfigs, setLaunchConfigs] = useState([]);
-  const [showJsonPopup, setShowJsonPopup] = useState(false);
-  const [editingConfigName, setEditingConfigName] = useState('');
+  const [serverUrls, setServerUrls] = useState({ chat_base_url: '', embed_base_url: '' });
   const [language, setLanguage] = useState('Russian');
-
-  const fetchServerStatus = useCallback(async () => {
-    try {
-      const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/api/servers/status`);
-      setServerStatus(response.data);
-    } catch (err) {
-      console.error("Error fetching server status:", err);
-    }
-  }, []);
-
-  const fetchServerConfigs = useCallback(async () => {
-    try {
-      const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/api/servers/configs`);
-      setServerConfigs(response.data);
-    } catch (err) {
-      console.error("Error fetching server configs:", err);
-    }
-  }, []);
 
   useEffect(() => {
     const fetchInitialData = async () => {
       try {
         setIsLoading(true);
-        const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/api/settings`);
-        const settings = response.data;
+        const settingsPromise = axios.get(`${import.meta.env.VITE_API_BASE_URL}/api/settings`);
+        const urlsPromise = axios.get(`${import.meta.env.VITE_API_BASE_URL}/api/server_urls`);
+        
+        const [settingsResponse, urlsResponse] = await Promise.all([settingsPromise, urlsPromise]);
 
+        const settings = settingsResponse.data;
         setChatModel(settings.chat_model.model || 'Not available');
         setEmbeddingModel(settings.embedding_model.model || 'Not available');
-        setServerConfigs(settings.server_configs);
-        setLaunchConfigs(settings.launch_configs);
         setLanguage(settings.language || 'English');
+        setServerUrls(urlsResponse.data);
 
-        if (settings.active_configs.chat !== undefined) {
-          setSelectedChatConfig(settings.active_configs.chat);
-        }
-        if (settings.active_configs.embedding !== undefined) {
-          setSelectedEmbeddingConfig(settings.active_configs.embedding);
-        }
-        
-        await fetchServerStatus();
         setError(null);
       } catch (err) {
         setError('Failed to fetch initial settings.');
@@ -68,9 +36,7 @@ function Settings({ disabled }) {
     };
 
     fetchInitialData();
-    const interval = setInterval(fetchServerStatus, 5000); // Poll every 5 seconds
-    return () => clearInterval(interval);
-  }, [fetchServerStatus]);
+  }, []);
 
   const handleLanguageChange = async (e) => {
     const newLanguage = e.target.value;
@@ -81,43 +47,6 @@ function Settings({ disabled }) {
       console.error("Error updating language:", err);
       setError("Failed to update language.");
     }
-  };
-
-  const handleServerAction = async (serverType, configName, action, configIndex = 0) => {
-    try {
-      if (action === 'update_config') {
-        await axios.post(`${import.meta.env.VITE_API_BASE_URL}/api/servers/update_config`, {
-          server_type: serverType,
-          config_name: configName,
-          config_index: configIndex
-        });
-      } else {
-        await axios.post(`${import.meta.env.VITE_API_BASE_URL}/api/servers/${action}`, {
-          server_type: serverType,
-          config_name: configName
-        });
-      }
-      await fetchServerStatus();
-    } catch (err) {
-      console.error(`Error ${action}ing server ${serverType}:`, err);
-      setError(`Failed to ${action} ${serverType} server.`);
-    }
-  };
-
-  const handleSaveJson = async (configName, content) => {
-    try {
-      await axios.post(`${import.meta.env.VITE_API_BASE_URL}/api/launch_configs/${configName}`, content);
-      await fetchServerConfigs();
-    } catch (err) {
-      console.error(`Error saving ${configName}:`, err);
-      setError(`Failed to save ${configName}.`);
-    }
-  };
-
-  const handleSelectOther = (serverType) => {
-    const configName = serverType === 'chat' ? 'chat_server.json' : 'embedding_server.json';
-    setEditingConfigName(configName);
-    setShowJsonPopup(true);
   };
 
   return (
@@ -140,88 +69,27 @@ function Settings({ disabled }) {
             <div className="setting-item">
               <h3>Chat Server</h3>
               <p>Status: 
-                {serverStatus.chat 
-                  ? <span className="status-indicator status-running">Running</span> 
-                  : <span className="status-indicator status-stopped">Stopped</span>}
+                {chatModel && chatModel !== 'Not available' 
+                  ? <span className="status-indicator status-running">Connected</span> 
+                  : <span className="status-indicator status-stopped">Not Connected</span>}
               </p>
+              <p>URL: {serverUrls.chat_base_url}</p>
               <p>Model: {chatModel}</p>
-              <label htmlFor="chat-config-select">Configuration</label>
-              <select 
-                id="chat-config-select" 
-                value={selectedChatConfig} 
-                onChange={(e) => {
-                  if (e.target.value === 'other') {
-                    handleSelectOther('chat');
-                  } else {
-                    setSelectedChatConfig(parseInt(e.target.value, 10));
-                  }
-                }}
-                disabled={disabled}
-              >
-                {serverConfigs.chat.map((config, index) => (
-                  <option key={index} value={index}>{config.name}</option>
-                ))}
-                <option value="other">Other...</option>
-              </select>
-              {!serverStatus.chat ? (
-                <div className="button-group">
-                  <button onClick={() => handleServerAction('chat', 'chat_server.json', 'start')} disabled={disabled}>Start</button>
-                </div>
-              ) : (
-                <div className="button-group">
-                  <button className="stop-button" onClick={() => handleServerAction('chat', 'chat_server.json', 'stop')} disabled={disabled}>Stop</button>
-                  <button onClick={() => handleServerAction('chat', 'chat_server.json', 'update_config', selectedChatConfig)} disabled={disabled}>Save & Restart</button>
-                </div>
-              )}
             </div>
 
             <div className="setting-item">
               <h3>Embedding Server</h3>
               <p>Status: 
-                {serverStatus.embedding 
-                  ? <span className="status-indicator status-running">Running</span> 
-                  : <span className="status-indicator status-stopped">Stopped</span>}
+                {embeddingModel && embeddingModel !== 'Not available'
+                  ? <span className="status-indicator status-running">Connected</span> 
+                  : <span className="status-indicator status-stopped">Not Connected</span>}
               </p>
+              <p>URL: {serverUrls.embed_base_url}</p>
               <p>Model: {embeddingModel}</p>
-              <label htmlFor="embedding-config-select">Configuration</label>
-              <select 
-                id="embedding-config-select" 
-                value={selectedEmbeddingConfig} 
-                onChange={(e) => {
-                  if (e.target.value === 'other') {
-                    handleSelectOther('embedding');
-                  }
-                  else {
-                    setSelectedEmbeddingConfig(parseInt(e.target.value, 10));
-                  }
-                }}
-                disabled={disabled}
-              >
-                {serverConfigs.embedding.map((config, index) => (
-                  <option key={index} value={index}>{config.name}</option>
-                ))}
-                <option value="other">Other...</option>
-              </select>
-              {!serverStatus.embedding ? (
-                <div className="button-group">
-                  <button onClick={() => handleServerAction('embedding', 'embedding_server.json', 'start')} disabled={disabled}>Start</button>
-                </div>
-              ) : (
-                <div className="button-group">
-                  <button className="stop-button" onClick={() => handleServerAction('embedding', 'embedding_server.json', 'stop')} disabled={disabled}>Stop</button>
-                  <button onClick={() => handleServerAction('embedding', 'embedding_server.json', 'update_config', selectedEmbeddingConfig)} disabled={disabled}>Save & Restart</button>
-                </div>
-              )}
             </div>
           </>
         )}
       </div>
-      <JsonEditPopup 
-        show={showJsonPopup}
-        configName={editingConfigName}
-        onClose={() => setShowJsonPopup(false)}
-        onSave={handleSaveJson}
-      />
     </div>
   );
 }

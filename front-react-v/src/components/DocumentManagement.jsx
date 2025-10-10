@@ -4,7 +4,7 @@ import FileDropzone from './FileDropzone';
 import FileIcon from './FileIcon';
 import { PlusCircle, Trash2, Folder } from 'lucide-react'; // Using lucide-react for icons
 
-function DocumentManagement({ currentThread, onThreadUpdate }) {
+function DocumentManagement({ currentThread, onThreadUpdate, onDocumentChange }) {
   const [activeTab, setActiveTab] = useState('Global');
   const [globalFiles, setGlobalFiles] = useState([]);
   const [threadFiles, setThreadFiles] = useState([]);
@@ -56,6 +56,12 @@ const [searchTerm, setSearchTerm] = useState('');
     try {
       await axios.delete(`${import.meta.env.VITE_API_BASE_URL}/api/documents/${docId}`);
       fetchGlobalFiles(); // Refresh global list
+      if (onThreadUpdate) {
+        onThreadUpdate();
+      }
+      if (onDocumentChange) {
+        onDocumentChange();
+      }
     } catch (error) {
       console.error("Error deleting document:", error);
     }
@@ -67,6 +73,7 @@ const [searchTerm, setSearchTerm] = useState('');
       await axios.post(`${import.meta.env.VITE_API_BASE_URL}/api/threads/${currentThread.id}/documents`, { document_id: docId });
       fetchThreadFiles(); // Refresh thread list
       if(onThreadUpdate) onThreadUpdate(); // Notify parent to refetch thread details
+      if (onDocumentChange) onDocumentChange();
     } catch (error) {
       console.error("Error adding document to thread:", error);
     }

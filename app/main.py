@@ -54,33 +54,7 @@ LAUNCH_CONFIG_DIR = "./app/launch_configs"
 app = FastAPI(title="RAGgie BOY", version="0.0.1")
 
 server_launcher = ServerLauncher()
-model_status = "loading"
-
-async def start_servers_in_background():
-    global model_status
-    if os.getenv("START_SERVERS", "true").lower() != "false":
-        server_launcher.start_all_servers()
-        
-        # Health check loop
-        for _ in range(30):  # 30 retries, 2 seconds apart = 1 minute timeout
-            try:
-                async with httpx.AsyncClient() as client:
-                    response = await client.get(f"{LLAMACPP_CHAT_BASE}/health")
-                    if response.status_code == 200:
-                        model_status = "ready"
-                        return
-            except httpx.RequestError:
-                pass
-            await asyncio.sleep(2)
-        model_status = "error"
-
-@app.on_event("startup")
-async def startup_event():
-    asyncio.create_task(start_servers_in_background())
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    server_launcher.stop_all_servers()
+model_status = "ready"
 
 @app.get("/api/status")
 async def get_status():
@@ -380,6 +354,16 @@ def get_settings():
         "language": stored_settings.get("language", "Russian")
     }
     return safe_json(settings)
+
+@app.get("/api/server_urls")
+def get_server_urls():
+    """
+    Provides the base URLs for the chat and embedding servers.
+    """
+    return safe_json({
+        "chat_base_url": LLAMACPP_CHAT_BASE,
+        "embed_base_url": LLAMACPP_EMBED_BASE
+    })
 
 @app.put("/api/settings")
 def update_settings(settings: Dict[str, Any]):

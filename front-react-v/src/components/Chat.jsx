@@ -110,8 +110,7 @@ function Chat({ currentThread, onThreadUpdate, disabled }) {
     <div className="chat-panel">
       {currentThread ? (
         <>
-          <MessageList messages={messages} onDeleteMessage={handleDeleteMessage} isThinking={isThinking} />
-          {isStreaming && <LoadingIndicator />}
+          <MessageList messages={messages} onDeleteMessage={handleDeleteMessage} isThinking={isThinking} isStreaming={isStreaming} />
           <ChatInput onSendMessage={handleSendMessage} disabled={isStreaming || disabled} />
         </>
       ) : (
