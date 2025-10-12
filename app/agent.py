@@ -199,3 +199,57 @@ class Agent:
             yield AgentResponse(answer="<internal>" + response.any_more_info_needed).model_dump_json()
             thread.history.append(AgentMessage(sender="agent", content=response.any_more_info_needed, retrieved_docs=retrieved_docs, follow_up=True))
             yield from self.agent_query(iteration + 1, thread, response.any_more_info_needed)
+
+    def simple_query(self, user_input: str, thread_id: str):
+        thread = self.thread_store.get_thread(thread_id)
+        if not thread:
+            raise ValueError("Thread not found")
+
+        thread.history.append(UserMessage(sender="user", content=user_input))
+
+        context_for_prompt = ""
+        retrieved_docs = []
+        
+        if thread.document_ids:
+            print(f"{INFO_COLOR} RAG USED (Simple Query) {Colors.RESET}")
+            retrieved_chunks_data = self.chroma_client.search_chunks(
+                query_text=user_input,
+                top_k=3,
+                doc_ids=thread.document_ids
+            )
+            # Format context for the model and collect document metadata
+            context_for_prompt = "\n\n".join(
+                [f"Source Document: {chunk['metadata']['name']}\nContent:\n{chunk['text']}" for chunk in retrieved_chunks_data]
+            )
+            
+            # Create a unique list of retrieved documents for the response
+            retrieved_docs_map = {chunk['metadata']['doc_id']: chunk['metadata']['name'] for chunk in retrieved_chunks_data}
+            retrieved_docs = [RetrievedDocument(id=doc_id, name=name) for doc_id, name in retrieved_docs_map.items()]
+
+        # Create a simple message history for the prompt
+        messages_for_prompt = self.history_to_payload(thread)
+
+        # Add the retrieved context and instructions to the system prompt
+        system_prompt_parts = ["You are a helpful assistant. Answer the user's question based on the conversation history."]
+        if context_for_prompt:
+            system_prompt_parts.append(
+                "You have been provided with the following context from relevant documents. "
+                "When you use information from this context, you MUST cite the source document's name, for example: [Source: document_name.pdf]."
+            )
+            messages_for_prompt.messages.insert(0, SystemLamaMessage(role="system", content=f"--- CONTEXT ---\n{context_for_prompt}\n--- END CONTEXT ---"))
+
+        messages_for_prompt.messages.insert(0, SystemLamaMessage(role="system", content="\n".join(system_prompt_parts)))
+
+        # Use the simpler `complete` method for direct text generation
+        response_text = self.generator.complete(
+            payload=messages_for_prompt,
+            temperature=0.7
+        )
+
+        # Save the full agent message with retrieved docs to history
+        thread.history.append(AgentMessage(sender="agent", content=response_text, retrieved_docs=retrieved_docs))
+        self.thread_store.save_thread(thread)
+
+        # Yield the structured response
+        agent_response = AgentResponse(answer=response_text, retrieved_docs=retrieved_docs)
+        yield agent_response.model_dump_json()
