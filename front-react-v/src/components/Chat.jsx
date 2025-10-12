@@ -35,7 +35,7 @@ function Chat({ currentThread, onThreadUpdate, disabled }) {
     }
   };
 
-  const handleSendMessage = (text) => {
+  const handleSendMessage = (text, useDbExplorer) => {
     if (!currentThread) return;
 
     const userMessage = { id: Date.now(), text, sender: 'user' };
@@ -54,7 +54,7 @@ function Chat({ currentThread, onThreadUpdate, disabled }) {
         const response = await fetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ content: text }),
+          body: JSON.stringify({ content: text, use_db_explorer: useDbExplorer }),
         });
 
         if (!response.body) return;

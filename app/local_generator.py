@@ -9,6 +9,7 @@ import dotenv
 import httpx
 from pydantic import BaseModel, Field, ValidationError
 import requests
+from app.google_gen import GoogleGenAI
 from app.schemas import *
 from app.colors import *
 
@@ -28,6 +29,15 @@ class LocalGenerator:
         """
         Initializes the generator with the local Llama server URL.
         """
+        if os.getenv("USE_GEMINI") == '1':
+            print(f"{INFO_COLOR}Using Gemini model as LLM backend{Colors.RESET}")
+            self.google_client = GoogleGenAI()
+        else: 
+            print(f"{INFO_COLOR}Using local Llama server as LLM backend{Colors.RESET}")
+            self.google_client = None
+            
+        self.complete_funtion = self.google_client.complete if self.google_client is not None else self.complete
+        
         self.base = base
         self.model = self._get_model_from_server()
         self.url = f"{self.base}/v1/chat/completions"
@@ -176,7 +186,7 @@ Begin your response immediately with the opening curly brace `{{`."""
                 print(f"{INFO_COLOR} url {self.url}:{Colors.RESET}")
                 
                 # response = requests.post(self.url, headers=headers, json=data)
-                response_text = self.complete(
+                response_text = self.complete_funtion(
                     payload=payload,
                     temperature=0.7,
                     max_tokens=2048)
@@ -264,10 +274,10 @@ Begin your response immediately with the opening curly brace `{{`."""
             try:
                 print(f"{INFO_COLOR} url {self.url}:{Colors.RESET}")
                 # response = requests.post(self.url, headers=headers, json=data)
-                response_text = self.complete(
+                response_text = self.complete_funtion(
                     system_prompt=system_prompt,
                     user=full_prompt,
-                    temperature=0.7,
+                    temperature=temperature,
                     max_tokens=2048)
                     
                 print(f"{SUCCESS_COLOR}Response received from Llama server.{Colors.RESET}")

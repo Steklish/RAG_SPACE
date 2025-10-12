@@ -692,3 +692,52 @@ h2 {
   right: calc(100% - 20px);
 }
 
+.input-wrapper {
+  display: flex;
+  width: 100%;
+}
+
+.checkbox-wrapper {
+  display: flex;
+  align-items: center;
+  margin-top: 0.5rem;
+  padding-left: 0.5rem;
+}
+
+.checkbox-wrapper input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  height: 18px;
+  width: 18px;
+  background-color: var(--border-color);
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  outline: none;
+  transition: background-color 0.3s;
+}
+
+.checkbox-wrapper input[type="checkbox"]:checked {
+  background-color: var(--primary-color);
+}
+
+.checkbox-wrapper input[type="checkbox"]::before {
+  content: '✔';
+  font-size: 12px;
+  color: white;
+  display: none;
+}
+
+.checkbox-wrapper input[type="checkbox"]:checked::before {
+  display: block;
+}
+
+.checkbox-wrapper label {
+  margin-left: 0.5rem;
+  color: var(--text-color);
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+

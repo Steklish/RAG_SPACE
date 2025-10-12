@@ -105,6 +105,7 @@ class Thread(BaseModel):
     
 class UserMessageRequest(BaseModel):
     content: str
+    use_db_explorer: bool = False
 
 class ThreadName(BaseModel):
     name: str

@@ -301,7 +301,7 @@ def rename_thread(thread_id: str, new_name: ThreadName):
 async def chat_in_thread(thread_id: str, message: UserMessageRequest):
     try:
         def stream_generator():
-            for chunk in agent.user_query(message.content, thread_id):
+            for chunk in agent.user_query(message.content, thread_id, use_db_explorer=message.use_db_explorer):
                 # Log the chunk before sending it
                 print(f"Sending chunk: {chunk}")
                 yield f"data: {json.dumps({'type': 'chunk', 'data': chunk}, ensure_ascii=False)}\n\n"

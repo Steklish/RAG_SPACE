@@ -4,7 +4,7 @@ from app.colors import INFO_COLOR, Colors
 from app.local_generator import LocalGenerator
 from app.thread_store import ThreadStore
 from app.schemas import *
-
+from app.google_gen import GoogleGenAI
 
 MAX_ITERATIONS = 3
 
@@ -14,6 +14,7 @@ class Agent:
         self.chroma_client = chroma_client
         self.thread_store = thread_store  
         self.language = language
+        
         
     def history_to_payload(self, thread: Thread) -> LLamaMessageHistory:
         messages = []
@@ -73,7 +74,8 @@ class Agent:
         print(f"Identified intent: {response.enhanced_query}, Need for retrieval: {response.need_for_retrieval}")
         return response
 
-    def user_query(self, user_input: str, thread_id: str, iterate: bool = True, temperature: float = 0.7):
+    def user_query(self, user_input: str, thread_id: str, use_db_explorer: bool = False, iterate: bool = True, temperature: float = 0.7):
+        print(f"Received in agent: use_db_explorer = {use_db_explorer}")
         thread = self.thread_store.get_thread(thread_id)
         if not thread:
             raise ValueError("Thread not found")
@@ -131,7 +133,7 @@ class Agent:
             
             if response.any_more_info_needed and iterate:
                 yield AgentResponse(answer="<internal>" + response.any_more_info_needed).model_dump_json()
-                thread.history.append(AgentMessage(sender="agent", content=response.any_more_info_needed))
+                # thread.history.append(AgentMessage(sender="agent", content=response.any_more_info_needed))
                 yield from self.agent_query(0, thread, response.any_more_info_needed)
         else:
             
