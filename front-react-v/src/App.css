@@ -89,8 +89,17 @@ h2 {
 }
 
 .message.follow-up {
+  margin-left: 50px;
   max-width: 70%;
-  border-left: 3px solid var(--primary-color);
+  border-left: 3px solid var(--primary-color-fade);
+  font-size: 0.9rem;
+  transition: border-left 0.3s, margin-left 0.3s, ease-out 0.3s;
+}
+
+.message.follow-up:hover {
+  margin-left: 60px;
+  max-width: 70%;
+  border-left: 15px solid var(--primary-color);
   font-size: 0.9rem;
 }
 
@@ -739,5 +748,26 @@ h2 {
   color: var(--text-color);
   font-size: 0.9rem;
   cursor: pointer;
+}
+
+.sources-toggle-button {
+  background: none;
+  border: none;
+  color: var(--primary-color);
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-family: inherit;
+  margin-bottom: 0.5rem;
+}
+
+.sources-toggle-button strong {
+  font-size: 0.8rem;
+}
+
+.retrieved-docs ul {
+  margin-top: 0.5rem;
 }
 

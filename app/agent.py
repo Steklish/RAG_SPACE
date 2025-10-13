@@ -1,4 +1,6 @@
 import time
+
+import httpx
 from app.chroma_client import ChromaClient
 from app.colors import INFO_COLOR, Colors
 from app.local_generator import LocalGenerator
@@ -74,8 +76,82 @@ class Agent:
         print(f"Identified intent: {response.enhanced_query}, Need for retrieval: {response.need_for_retrieval}")
         return response
 
-    def user_query(self, user_input: str, thread_id: str, use_db_explorer: bool = False, iterate: bool = True, temperature: float = 0.7):
-        print(f"Received in agent: use_db_explorer = {use_db_explorer}")
+    
+    def user_intent_db_explorer(self, thread: Thread, temperature: float = 0.5) -> DataBaseIntentAnalysis:
+        """
+        Analyzes the user's intent for querying a database, rewrites the query with context,
+        and determines if an SQL query is necessary.
+
+        Args:
+            thread (Thread): The conversation thread containing the user's query and history.
+            temperature (float): The temperature for the language generation model.
+
+        Returns:
+            DataBaseIntentAnalysis: An object containing the enhanced query and a flag indicating
+                                    whether an SQL query is needed.
+        """
+
+        try:
+            response = httpx.get(f"http://127.0.0.1:{int(os.getenv('MCP_PORT', 1234))}/api/database/tables")
+            response.raise_for_status()  # Raise HTTPError for bad responses (4xx or 5xx)
+            db_structure = response.json()
+        except httpx.RequestError as e:
+            print(f"Error fetching database structure: {e}")
+            db_structure = {}  # Handle the error appropriately, e.g., return a default structure
+        except ValueError as e:
+            print(f"Error decoding JSON response: {e}")
+            db_structure = {}
+
+        example_query = [{'role': 'user', 'content': 'Get all customers from the USA'}, {'role': 'model', 'content': 'SELECT * FROM Customers WHERE Country = "USA";'}]
+        example_response = {
+            "enhanced_query": "The user wants to retrieve all customer records from the 'Customers' table where the 'Country' field is 'USA'. A single SQL query is sufficient to achieve this.",
+            "need_for_sql": True
+        }
+
+        system_prompt = (
+            f"""You are an expert at understanding user intent for database queries. 
+            Rewrite the user's query by enriching it with context from the conversation history and the database structure.
+            The rewritten query should be a detailed and specific description of what the user wants, including:
+            - The specific data they are trying to retrieve.
+            - Any filters or conditions that should be applied.
+            - The number of SQL queries needed to fulfill the request.
+            - Table names, Column names, and relationships from available database structure, if mentioned
+
+            You also need to determine if an SQL query is necessary to answer the user's query.
+
+            **Available Database Structure:**\n{db_structure}\n\n
+
+            <Example>
+            example query(conversation history): {example_query}
+            example response: {example_response}
+            </Example>
+            """
+        )
+
+        prompt = f"""
+        Here is the conversation history. Determine what the user wants to get from the database,
+        and describe it in detail, including filters and the number of queries required.
+        <conversation history>
+        {self.history_to_payload(thread).to_dict()}
+        </conversation history>
+        """
+        # print("Prompt for intent analysis:", system_prompt)
+        # print("History for intent analysis:", self.history_to_payload(thread).to_dict())
+
+        #  Use the generator to create the intent analysis
+        analysis_response: DataBaseIntentAnalysis = self.generator.generate_one_shot(
+            system_prompt=system_prompt,
+            prompt=prompt,
+            language=self.language,
+            pydantic_model=DataBaseIntentAnalysis,
+            temperature=temperature
+        )
+
+        print(f"Identified intent: {analysis_response.enhanced_query}, Need for SQL: {analysis_response.need_for_sql}")
+        return analysis_response
+
+
+    def user_query(self, user_input: str, thread_id: str, iterate: bool = True, temperature: float = 0.7):
         thread = self.thread_store.get_thread(thread_id)
         if not thread:
             raise ValueError("Thread not found")
@@ -199,7 +275,7 @@ class Agent:
         
         if response.any_more_info_needed:
             yield AgentResponse(answer="<internal>" + response.any_more_info_needed).model_dump_json()
-            thread.history.append(AgentMessage(sender="agent", content=response.any_more_info_needed, retrieved_docs=retrieved_docs, follow_up=True))
+            # thread.history.append(AgentMessage(sender="agent", content=response.any_more_info_needed, retrieved_docs=retrieved_docs, follow_up=True))
             yield from self.agent_query(iteration + 1, thread, response.any_more_info_needed)
 
     def simple_query(self, user_input: str, thread_id: str):
@@ -255,3 +331,112 @@ class Agent:
         # Yield the structured response
         agent_response = AgentResponse(answer=response_text, retrieved_docs=retrieved_docs)
         yield agent_response.model_dump_json()
+        
+        
+    def query_with_db_explorer(self, user_input: str, thread_id: str, iterate: bool = True, iteration: int = 0):
+        if iteration >= MAX_ITERATIONS:
+            yield AgentResponse(answer="<internal>Maximum iterations reached.").model_dump_json()
+            return
+        thread = self.thread_store.get_thread(thread_id)
+        if not thread:
+            raise ValueError("Thread not found")
+        
+        thread.history.append(UserMessage(sender="user", content=user_input))
+        
+        # We'll use the enriched query from the previous step here
+        intent = self.user_intent_db_explorer(thread)
+        
+        system_prompt = (
+                f"""
+                You are an AI assistant that generates SQL queries to answer questions. Follow these steps:\n
+                1. Analyze the user's query and determine the necessary SQL query to retrieve the required information.\n
+                2. Generate a safe and efficient SQL SELECT query based on the database schema provided in `<db_schema>`. Ensure the query is a SELECT statement and does not contain any harmful operations like INSERT, UPDATE, DELETE, DROP, or ALTER.\n
+                3. Provide the SQL query in the `sql_query` field of your response.\
+                """
+            )
+        prompt = f"""
+        Here is the user query that you should fulfill using the database.
+        <user_query>
+        {intent.enhanced_query}
+        </user_query>
+        <db_schema>
+        {httpx.get(f"http://127.0.0.1:{int(os.getenv("MCP_PORT", 1234))}/api/database/tables").text}
+        </db_schema>
+        """ 
+        
+        if intent.need_for_sql:
+            print(f"{INFO_COLOR} YES SQL {Colors.RESET}")
+            query_list = self.generator.generate_one_shot(
+                system_prompt=system_prompt,
+                prompt=prompt,
+                language=self.language,
+                pydantic_model=DataBaseQueryList,
+                temperature=0.5
+            )
+            
+            results = []
+            
+            for query in query_list.sql_queries:
+                print(f"Generated SQL query: {query}")
+                try:
+                    query_results = httpx.get(f"http://127.0.0.1:{int(os.getenv('MCP_PORT', 1234))}/api/database/query", params={"query": query})
+                    results.append(
+                        {
+                            "query": query,
+                            "results": query_results.json().get("results", []),
+                        }
+                    )
+                except Exception as e:
+                    results.append(
+                        {
+                            "query": query,
+                            "results": f"Error executing query: {e}",
+                        }
+                    )  
+                    
+            prompt = f"""
+            You need to answer the user's original query based on the results of the executed SQL queries.
+            <user_query>{intent.enhanced_query}</user_query>
+            
+            <sql_results>
+            {results}
+            </sql_results>
+            """        
+            
+            response = self.generator.generate_one_shot(
+                system_prompt=system_prompt,
+                prompt=prompt,
+                language=self.language,
+                pydantic_model=ResponseWithRetrieval,
+                temperature=0.7)
+            
+            thread.history.append(AgentMessage(sender="agent", content=response.answer))
+            
+            agent_response = AgentResponse(answer=response.answer)
+            yield agent_response.model_dump_json()
+            
+            if response.any_more_info_needed and iterate:
+                yield AgentResponse(answer="<internal>" + response.any_more_info_needed).model_dump_json()
+                # thread.history.append(AgentMessage(sender="agent", content=response.any_more_info_needed))
+                yield from self.query_with_db_explorer(
+                    thread_id=thread_id, 
+                    user_input=response.any_more_info_needed,
+                    iteration=iteration + 1)
+                    
+        else:
+            
+            print(f"{INFO_COLOR} NO SQL {Colors.RESET}")
+            system_prompt = (
+                f"You are a helpful assistant. Your task is to directly answer the user's question based on the provided chat history. "
+                f"Do not explain your reasoning process. Provide a direct answer in the `answer` field.\n\n"
+                f"Based on the user query, provide a comprehensive answer."
+            )
+            response = self.generator.generate_with_payload(
+                system_prompt=system_prompt,
+                language=self.language,
+                pydantic_model=ResponseWithoutRetrieval,
+                payload=self.history_to_payload(thread))
+            
+            thread.history.append(AgentMessage(sender="agent", content=response.answer))
+            yield AgentResponse(answer=response.answer).model_dump_json()
+        self.thread_store.save_thread(thread)

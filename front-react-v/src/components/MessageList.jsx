@@ -1,10 +1,12 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { FileText, Trash2 } from 'lucide-react';
+import { FileText, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
 import LoadingIndicator from './LoadingIndicator';
+import remarkGfm from 'remark-gfm';
 
 const MessageList = ({ messages, onDeleteMessage, isStreaming }) => {
   const messagesEndRef = useRef(null);
+  const [expandedSources, setExpandedSources] = useState({});
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -14,25 +16,34 @@ const MessageList = ({ messages, onDeleteMessage, isStreaming }) => {
     scrollToBottom();
   }, [messages, isStreaming]);
 
+  const toggleSources = (index) => {
+    setExpandedSources(prev => ({ ...prev, [index]: !prev[index] }));
+  };
+
   return (
     <div className="message-list">
       {messages.map((msg, index) => (
         <div key={index} className="message-container">
           <div className={`message ${msg.sender} ${msg.follow_up ? 'follow-up' : ''}`}>
-            <ReactMarkdown>{msg.text}</ReactMarkdown>
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.text}</ReactMarkdown>
             {msg.sender === 'agent' && msg.retrieved_docs && Array.isArray(msg.retrieved_docs) && msg.retrieved_docs.length > 0 && (
               <div className="retrieved-docs">
-                <strong>Sources:</strong>
-                <ul>
-                  {msg.retrieved_docs.map((doc, i) => (
-                    <li key={i}>
-                      <a href={`/documents/${doc.id}`} onClick={(e) => e.preventDefault()}>
-                        <FileText size={14} />
-                        {doc.name} ({doc.id.substring(0, 8)}...)
-                      </a>
-                    </li>
-                  ))}
-                </ul>
+                <button onClick={() => toggleSources(index)} className="sources-toggle-button">
+                  {expandedSources[index] ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                  <strong>Sources ({msg.retrieved_docs.length})</strong>
+                </button>
+                {expandedSources[index] && (
+                  <ul>
+                    {msg.retrieved_docs.map((doc, i) => (
+                      <li key={i}>
+                        <a href={`/documents/${doc.id}`} onClick={(e) => e.preventDefault()}>
+                          <FileText size={14} />
+                          {doc.name} ({doc.id.substring(0, 8)}...)
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
             )}
           </div>

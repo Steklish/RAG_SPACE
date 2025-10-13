@@ -44,11 +44,7 @@ function Chat({ currentThread, onThreadUpdate, disabled }) {
     setIsThinking(false);
 
     const url = `${import.meta.env.VITE_API_BASE_URL}/api/threads/${currentThread.id}/chat`;
-    const botMessage = { id: Date.now() + 1, text: '', sender: 'agent', retrieved_docs: [], follow_up: false };
     
-    // Add a placeholder for the bot's message immediately
-    setMessages(prev => [...prev, botMessage]);
-
     const postAndStream = async () => {
       try {
         const response = await fetch(url, {
@@ -76,27 +72,58 @@ function Chat({ currentThread, onThreadUpdate, disabled }) {
 				  const eventData = JSON.parse(JSON.parse(jsonStr).data);
                   if (eventData.answer.startsWith('<internal>')) {
                     setIsThinking(true);
-                    return; // Don't display internal messages
+                    return; 
                   }
                   setIsThinking(false);
-				  console.log(eventData)
-              setMessages(prev => prev.map(msg => 
-				msg.id === botMessage.id 
-                ? { ...msg, text: msg.text + eventData.answer, retrieved_docs: eventData.retrieved_docs || [], follow_up: eventData.follow_up || false }
-                : msg
-              ));
+
+                  setMessages(prev => {
+                    const currentMessages = [...prev];
+                    const lastMessage = currentMessages[currentMessages.length - 1];
+
+                    if (eventData.follow_up && lastMessage && lastMessage.sender === 'agent' && lastMessage.text) {
+                      const newBotMessage = {
+                        id: Date.now() + Math.random(),
+                        text: eventData.answer,
+                        sender: 'agent',
+                        retrieved_docs: eventData.retrieved_docs || [],
+                        follow_up: true,
+                      };
+                      return [...currentMessages, newBotMessage];
+                    }
+                    else if (lastMessage && lastMessage.sender === 'agent') {
+                      lastMessage.text += eventData.answer;
+                      const existingDocs = lastMessage.retrieved_docs || [];
+                      const newDocs = eventData.retrieved_docs || [];
+                      const uniqueDocs = [...new Map([...existingDocs, ...newDocs].map(item => [item.id, item])).values()];
+                      lastMessage.retrieved_docs = uniqueDocs;
+                      return currentMessages;
+                    }
+                    else {
+                      const newBotMessage = {
+                        id: Date.now() + Math.random(),
+                        text: eventData.answer,
+                        sender: 'agent',
+                        retrieved_docs: eventData.retrieved_docs || [],
+                        follow_up: eventData.follow_up || false,
+                      };
+                      return [...currentMessages, newBotMessage];
+                    }
+                  });
             } catch (e) {
-              // Ignore parsing errors
+              console.error("Error parsing stream chunk:", e);
             }
           });
         }
       } catch (error) {
         console.error("Streaming failed:", error);
-        setMessages(prev => prev.map(msg => 
-          msg.id === botMessage.id 
-          ? { ...msg, text: msg.text + '\n[Error receiving response]' }
-          : msg
-        ));
+        setMessages(prev => {
+            const lastMessage = prev[prev.length -1];
+            if(lastMessage && lastMessage.sender === 'agent') {
+                lastMessage.text += '\n[Error receiving response]';
+                return [...prev];
+            }
+            return [...prev, { id: Date.now(), text: '[Error receiving response]', sender: 'agent' }];
+        });
       } finally {
         setIsStreaming(false);
         setIsThinking(false);

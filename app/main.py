@@ -299,9 +299,13 @@ def rename_thread(thread_id: str, new_name: ThreadName):
 
 @app.post("/api/threads/{thread_id}/chat")
 async def chat_in_thread(thread_id: str, message: UserMessageRequest):
+    if message.use_db_explorer:
+        stream_func = agent.query_with_db_explorer
+    else:
+        stream_func = agent.user_query
     try:
         def stream_generator():
-            for chunk in agent.user_query(message.content, thread_id, use_db_explorer=message.use_db_explorer):
+            for chunk in stream_func(message.content, thread_id):
                 # Log the chunk before sending it
                 print(f"Sending chunk: {chunk}")
                 yield f"data: {json.dumps({'type': 'chunk', 'data': chunk}, ensure_ascii=False)}\n\n"

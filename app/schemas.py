@@ -65,10 +65,10 @@ class IntentAnalysis(BaseModel):
     
 class ResponseWithRetrieval(BaseModel):
     """
-    Represents a response that includes both the generated answer and the relevant retrieved chunks.
+    Represents a response that includes both the generated answer and a request for additional information if necessary.
     """
-    answer: str = Field(description="The generated answer to the user's query.")
-    any_more_info_needed: Optional[str] = Field(None, description="Any additional information or context if not enough to fulfill user query.")
+    answer: str = Field(description="The generated answer to the user's query. (MarkDown is suppoted)")
+    any_more_info_needed: Optional[str] = Field(None, description="Any additional information in context of documents if not enough to fulfill user query.")
     
 class ResponseWithoutRetrieval(BaseModel):
     """
@@ -162,3 +162,19 @@ class LLamaMessageHistory(BaseModel):
     def to_dict(self) -> List[Dict[str, str]]:
         
         return [{"role" : message.role, "content" : message.content} for message in self.messages]
+    
+
+class DataBaseQueryList(BaseModel):
+    sql_queries: List[str] = Field(description="The list of SQL queries to be executed on the database.")
+    
+class DataBaseIntentAnalysis(BaseModel):
+    enhanced_query: str = Field(description="The context-enrichen, rewritten query with a lot of details.")
+    need_for_sql: bool = Field(description="Whether SQL query is necessary to answer the query.")
+    
+class ResponseWithDatabase(BaseModel):
+    """
+    Represents a response that includes both the generated answer and a request for additional information if necessary.
+    """
+    answer: str = Field(description="The generated answer to the user's query. (MarkDown is suppoted)")
+    any_more_info_needed: Optional[str] = Field(None, description="Any additional information in context of database or context if not enough to fulfill user query.")
+    

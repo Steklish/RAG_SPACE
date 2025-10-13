@@ -2,12 +2,18 @@
 import json
 import subprocess
 import os
+import sys
+import uvicorn
 from typing import List, Dict, Optional
+
+# Import the new launcher
+from app.mcp.main import app as fastapi_app_mcp
 
 class ServerLauncher:
     def __init__(self, config_dir: str = "app/launch_configs"):
         self.config_dir = config_dir
-        self.processes: Dict[str, subprocess.Popen] = {}
+        self.processes = {}  # Initialize the dictionary
+        self.start_all_servers()
 
     def get_available_configs(self) -> Dict[str, List[Dict]]:
         configs = {"chat": [], "embedding": []} 
@@ -56,9 +62,20 @@ class ServerLauncher:
                 self.start_server(server_type, config_name)
 
     def start_all_servers(self) -> None:
-        print("Attempted to start all servers, but server management is disabled.")
-        pass
+        """Starts the FastAPI server within the current process."""
+        mcp_port = int(os.getenv("MCP_PORT", "8000"))  # Convert port to integer
+        config = uvicorn.Config(fastapi_app_mcp, host="0.0.0.0", port=mcp_port, log_level="info")
+        server = uvicorn.Server(config)
 
+        # Run the server in a separate thread to avoid blocking the main thread
+        import threading
+        def run_server():
+            server.run()
+
+        thread = threading.Thread(target=run_server, daemon=True)  # daemon=True allows the main thread to exit without waiting
+        thread.start()
+        self.processes["mcp"] = thread # Store the thread instead of process   
+        
     def stop_all_servers(self) -> None:
         print("Attempted to stop all servers, but server management is disabled.")
         pass
@@ -80,12 +97,3 @@ class ServerLauncher:
             active_configs["embedding"] = embedding_config.get("active_config", 0)
             
         return active_configs
-
-if __name__ == "__main__":
-    launcher = ServerLauncher()
-    launcher.start_all_servers()
-    try:
-        while True:
-            pass
-    except KeyboardInterrupt:
-        launcher.stop_all_servers()
