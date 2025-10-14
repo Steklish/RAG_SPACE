@@ -19,7 +19,7 @@ class QwenGenAI:
             raise ValueError("QWEN_TOKEN environment variable not set.")
         
         self.api_key = api_key
-        self.model_name = os.getenv("QWEN_MODEL")
+        self.model_name = os.getenv("QWEN_MODEL_OPENROUTER")
         self.base_url = "https://openrouter.ai/api/v1/chat/completions"
 
     def get_model(self):

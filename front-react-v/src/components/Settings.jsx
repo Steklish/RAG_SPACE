@@ -15,7 +15,7 @@ function Settings({ disabled }) {
     const fetchInitialData = async () => {
       try {
         setIsLoading(true);
-        const settingsPromise = axios.get(`${import.meta.env.VITE_API_BASE_URL}/api/settings`);
+        const settingsPromise = axios.get(`${import.meta.env.VITE_API_BASE_URL}/api`);
         const urlsPromise = axios.get(`${import.meta.env.VITE_API_BASE_URL}/api/server_urls`);
         
         const [settingsResponse, urlsResponse] = await Promise.all([settingsPromise, urlsPromise]);
@@ -42,7 +42,7 @@ function Settings({ disabled }) {
     const newLanguage = e.target.value;
     setLanguage(newLanguage);
     try {
-      await axios.put(`${import.meta.env.VITE_API_BASE_URL}/api/settings`, { language: newLanguage });
+      await axios.put(`${import.meta.env.VITE_API_BASE_URL}/api`, { language: newLanguage });
     } catch (err) {
       console.error("Error updating language:", err);
       setError("Failed to update language.");
