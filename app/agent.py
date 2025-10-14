@@ -4,7 +4,7 @@ import time
 import httpx
 from app.chroma_client import ChromaClient
 from app.colors import INFO_COLOR, Colors
-from app.local_generator import LocalGenerator
+from app.generator import Generator
 from app.thread_store import ThreadStore
 from app.schemas import *
 from app.google_gen import GoogleGenAI
@@ -12,7 +12,7 @@ from app.google_gen import GoogleGenAI
 MAX_ITERATIONS = 3
 
 class Agent:
-    def __init__(self, generator: LocalGenerator, chroma_client: ChromaClient, thread_store : ThreadStore, language : str = "Russian"):
+    def __init__(self, generator: Generator, chroma_client: ChromaClient, thread_store : ThreadStore, language : str = "Russian"):
         self.generator = generator
         self.chroma_client = chroma_client
         self.thread_store = thread_store  
@@ -327,7 +327,7 @@ class Agent:
         messages_for_prompt.messages.insert(0, SystemLamaMessage(role="system", content="\n".join(system_prompt_parts)))
 
         # Use the simpler `complete` method for direct text generation
-        response_text = self.generator.complete(
+        response_text = self.generator.complete_funtion(
             payload=messages_for_prompt,
             temperature=0.7
         )

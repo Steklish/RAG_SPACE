@@ -15,7 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.agent import Agent
 from app.chroma_client import ChromaClient
-from app.local_generator import LocalGenerator
+from app.generator import Generator
 from app.embedding_client import EmbeddingClient
 from app.schemas import *
 from app.thread_store import ThreadStore
@@ -68,7 +68,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-llm_client = LocalGenerator(LLAMACPP_CHAT_BASE)
+llm_client = Generator(LLAMACPP_CHAT_BASE)
 embed_client = EmbeddingClient(LLAMACPP_EMBED_BASE)
 chroma_client = ChromaClient(embed_client, CHROMA_PERSIST_DIR)
 thread_store = ThreadStore()
@@ -365,7 +365,7 @@ def get_server_urls():
     Provides the base URLs for the chat and embedding servers.
     """
     return safe_json({
-        "chat_base_url": LLAMACPP_CHAT_BASE,
+        "chat_base_url": agent.generator._backend_type,
         "embed_base_url": LLAMACPP_EMBED_BASE
     })
 

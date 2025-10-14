@@ -3,6 +3,7 @@ from typing import Optional, List
 from google import genai
 from google.genai import types
 from pydantic import BaseModel, Field
+from app.colors import INFO_COLOR, Colors
 from app.schemas import LLamaMessageHistory
 
 # --- Main Class ---
@@ -27,6 +28,9 @@ class GoogleGenAI:
         
         self.model_name = os.getenv("GEMINI_MODEL")
 
+    def get_model(self):
+        return self.model_name
+    
     def complete(self,
                  system_prompt: Optional[str] = None,
                  user: Optional[str] = None,
@@ -80,6 +84,7 @@ class GoogleGenAI:
         print("Contents sent to Gemini model:")
         try:
             text = ""
+            print(f"{INFO_COLOR}Response from {self.__class__.__name__}:{Colors.RESET}")
             for chunk in self.client.models.generate_content_stream(
                 model=self.model_name, # type: ignore
                 contents=contents, # type: ignore

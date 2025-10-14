@@ -10,6 +10,8 @@ import httpx
 from pydantic import BaseModel, Field, ValidationError
 import requests
 from app.google_gen import GoogleGenAI
+from app.llama_gen import LlamaGenAI
+from app.qwen_gen import QwenGenAI
 from app.schemas import *
 from app.colors import *
 
@@ -19,7 +21,7 @@ T = TypeVar("T", bound=BaseModel)
 RETRIES = int(os.getenv("LLAMACPP_MAX_RETRIES", 3))
 TIMEOUT = int(os.getenv("LLAMACPP_TIMEOUT_S", 300))
 
-class LocalGenerator:
+class Generator:
     """
     A class to generate instances of Pydantic models in a specified language
     by instructing a local Llama server to return a JSON object.
@@ -29,96 +31,32 @@ class LocalGenerator:
         """
         Initializes the generator with the local Llama server URL.
         """
+            
+        self.base = base
+        
+        self.url = f"{self.base}/v1/chat/completions"
+        
         if os.getenv("USE_GEMINI") == '1':
-            print(f"{INFO_COLOR}Using Gemini model as LLM backend{Colors.RESET}")
+            print(f"{INFO_COLOR}Using GEMINI model as LLM backend{Colors.RESET}")
             self.google_client = GoogleGenAI()
+            self.complete_funtion =  self.google_client.complete
+            self._backend_type = "gemini"
+            self._get_model_from_server = self.google_client.get_model
+        elif os.getenv("USE_QWEN") == '1':
+            print(f"{INFO_COLOR}Using QWEN model as LLM backend{Colors.RESET}")
+            self.qwen_client = QwenGenAI()
+            self.complete_funtion = self.qwen_client.complete
+            self._backend_type = "qwen"
+            self._get_model_from_server = self.qwen_client.get_model
         else: 
             print(f"{INFO_COLOR}Using local Llama server as LLM backend{Colors.RESET}")
-            self.google_client = None
-            
-        self.complete_funtion = self.google_client.complete if self.google_client is not None else self.complete
+            self.llama_client = LlamaGenAI(base)
+            self.complete_funtion = self.llama_client.complete
+            self._backend_type = f"local <{self.base}>"
         
-        self.base = base
+        print(f"{SUCCESS_COLOR}Generator instantiated successfully.{Colors.RESET}")
         self.model = self._get_model_from_server()
-        self.url = f"{self.base}/v1/chat/completions"
-        print(f"{SUCCESS_COLOR}LocalGenerator instantiated successfully.{Colors.RESET}")
     
-    def _payload(self, system_prompt: str, user: str, temperature: Optional[float], max_tokens: Optional[int], grammar: Optional[str] = None):
-        body = {
-            "model": self.model,
-            "messages": [
-                {"role": "system", "content": system_prompt or ""},
-                {"role": "user", "content": user or ""},
-            ],
-        }
-        if temperature is not None:
-            body["temperature"] = temperature
-        if max_tokens is not None:
-            body["max_tokens"] = max_tokens
-        if grammar is not None:
-            body["grammar"] = grammar
-        return body
-    
-    def complete(self, 
-                 system_prompt: Optional[str] = None, 
-                 user: Optional[str] = None, 
-                 temperature: Optional[float] = None, 
-                 max_tokens: Optional[int] = None,
-                 payload: Optional[LLamaMessageHistory] = None,
-                 grammar: Optional[str] = None) -> str:
-        """Uses LLM to generate a string
-
-        Args:
-            system_prompt (str): system prompt 
-            user (str): user prompt
-            temperature (Optional[float], optional): LLM temperature. Defaults to None.
-            max_tokens (Optional[int], optional): LLM max tokens for generation. Defaults to None.
-            grammar (Optional[str], optional): Llama.cpp grammar to constrain output. Defaults to None.
-
-        Raises:
-            last_exc
-
-        Returns:
-            str: generated string
-        """
-        headers = {"Content-Type": "application/json"}
-        if payload is None:
-            payload_dict = self._payload(system_prompt, user, temperature, max_tokens, grammar) # type: ignore
-        else:
-            payload_dict = {
-                "model": self.model,
-                "messages": payload.to_dict()
-            }
-            if temperature is not None:
-                payload_dict["temperature"] = temperature
-            if max_tokens is not None:
-                payload_dict["max_tokens"] = max_tokens
-            if grammar is not None:
-                payload_dict["grammar"] = grammar
-        
-        last_exc = None
-        for attempt in range(RETRIES + 1):
-            try:
-                print(payload_dict)
-                r = httpx.post(self.url, json=payload_dict, timeout=TIMEOUT, headers=headers)
-                r.raise_for_status()
-                data = r.json()
-                # обычный OAI-ответ
-                msg = (data.get("choices") or [{}])[0].get("message", {})
-                text = msg.get("content")
-                # некоторые сборки кладут в choices[0].text
-                if text is None:
-                    text = (data.get("choices") or [{}])[0].get("text")
-                with open("./storage/dev/response.txt", "a", encoding="utf-8") as f:
-                    f.write("\n" + "-" * 10)
-                    f.write(str(payload_dict))
-                    f.write(str(text))
-                    f.write("\n" + "-" * 10)
-                return text or ""
-            except Exception as e:
-                last_exc = e
-                time.sleep(min(2.0, 0.5 * attempt + 0.1))
-        raise last_exc # type: ignore
 
         
     def _clean_json_response(self, text_response: str) -> str:
