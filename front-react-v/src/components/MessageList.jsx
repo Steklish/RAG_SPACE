@@ -20,12 +20,16 @@ const MessageList = ({ messages, onDeleteMessage, isStreaming }) => {
     setExpandedSources(prev => ({ ...prev, [index]: !prev[index] }));
   };
 
+  const components = {
+    table: ({ ...props}) => <div className="table-container"><table {...props} /></div>
+  };
+
   return (
     <div className="message-list">
       {messages.map((msg, index) => (
         <div key={index} className="message-container">
           <div className={`message ${msg.sender} ${msg.follow_up ? 'follow-up' : ''}`}>
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.text}</ReactMarkdown>
+            <ReactMarkdown components={components} remarkPlugins={[remarkGfm]}>{msg.text}</ReactMarkdown>
             {msg.sender === 'agent' && msg.retrieved_docs && Array.isArray(msg.retrieved_docs) && msg.retrieved_docs.length > 0 && (
               <div className="retrieved-docs">
                 <button onClick={() => toggleSources(index)} className="sources-toggle-button">
@@ -36,10 +40,18 @@ const MessageList = ({ messages, onDeleteMessage, isStreaming }) => {
                   <ul>
                     {msg.retrieved_docs.map((doc, i) => (
                       <li key={i}>
-                        <a href={`/documents/${doc.id}`} onClick={(e) => e.preventDefault()}>
-                          <FileText size={14} />
-                          {doc.name} ({doc.id.substring(0, 8)}...)
-                        </a>
+                        {doc.id == "SQL" ? (
+                          // TRUE: If doc.id starts with '[query]', display as a code block
+                          <pre>
+                            <code>{doc.name}</code>
+                          </pre>
+                        ) : (
+                          // FALSE: Otherwise, display as the original link
+                          <a href={`/documents/${doc.id}`} onClick={(e) => e.preventDefault()}>
+                            <FileText size={14} />
+                            {doc.name} ({doc.id.substring(0, 8)}...)
+                          </a>
+                        )}
                       </li>
                     ))}
                   </ul>

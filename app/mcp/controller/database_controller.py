@@ -35,8 +35,8 @@ async def execute_query(query: str):
 @router.get("/tables")
 async def list_tables():
     model.connect()
-    tables = model.list_tables()
+    table_columns = model.get_table_columns()
     model.disconnect()
-    if tables is None:
+    if table_columns is None:
         raise HTTPException(status_code=500, detail="Error listing tables")
-    return {"tables": tables}
+    return {"tables": table_columns}

@@ -1,3 +1,4 @@
+import re
 import time
 
 import httpx
@@ -108,29 +109,36 @@ class Agent:
             "need_for_sql": True
         }
 
+        example_query_2 = [{'role': 'user', 'content': 'can you provide me Peter Jones info pls'}]
+        example_response_2 = {
+            "enhanced_query": "The user wants to retrieve all available information for a person named 'Peter Jones'. This requires searching relevant tables like 'employees' or 'customers' for a record where the name matches 'Peter Jones' and selecting all columns. This can be achieved with a single SQL query.",
+            "need_for_sql": True
+        }
+
         system_prompt = (
             f"""You are an expert at understanding user intent for database queries. 
             Rewrite the user's query by enriching it with context from the conversation history and the database structure.
-            The rewritten query should be a detailed and specific description of what the user wants, including:
-            - The specific data they are trying to retrieve.
-            - Any filters or conditions that should be applied.
-            - The number of SQL queries needed to fulfill the request.
-            - Table names, Column names, and relationships from available database structure, if mentioned
+            The rewritten query should be a detailed and specific description of what the user wants.
 
             You also need to determine if an SQL query is necessary to answer the user's query.
 
             **Available Database Structure:**\n{db_structure}\n\n
 
-            <Example>
+            <Example 1>
             example query(conversation history): {example_query}
             example response: {example_response}
-            </Example>
+            </Example 1>
+
+            <Example 2>
+            example query(conversation history): {example_query_2}
+            example response: {example_response_2}
+            </Example 2>
             """
         )
 
         prompt = f"""
         Here is the conversation history. Determine what the user wants to get from the database,
-        and describe it in detail, including filters and the number of queries required.
+        and describe it in detail, including exact columns, tables and other names, filters and the number of queries required.
         <conversation history>
         {self.history_to_payload(thread).to_dict()}
         </conversation history>
@@ -333,25 +341,32 @@ class Agent:
         yield agent_response.model_dump_json()
         
         
-    def query_with_db_explorer(self, user_input: str, thread_id: str, iterate: bool = True, iteration: int = 0):
+    def query_with_db_explorer(self, user_input: str, thread_id: Optional[str] = None, iterate: bool = True, iteration: int = 0, thread: Optional[Thread] = None):
         if iteration >= MAX_ITERATIONS:
-            yield AgentResponse(answer="<internal>Maximum iterations reached.").model_dump_json()
+            yield AgentResponse(answer="Maximum iterations reached.").model_dump_json()
             return
-        thread = self.thread_store.get_thread(thread_id)
+        if not thread:
+            if thread_id:
+                thread = self.thread_store.get_thread(thread_id)
         if not thread:
             raise ValueError("Thread not found")
         
-        thread.history.append(UserMessage(sender="user", content=user_input))
-        
-        # We'll use the enriched query from the previous step here
-        intent = self.user_intent_db_explorer(thread)
+        if iteration == 0:
+            thread.history.append(UserMessage(sender="user", content=user_input))    
+            intent = self.user_intent_db_explorer(thread)
+        else:
+            print(f"{INFO_COLOR} Iteration {iteration} {Colors.RESET}")
+            intent = DataBaseIntentAnalysis(
+                enhanced_query=user_input,
+                need_for_sql=True
+            )
         
         system_prompt = (
                 f"""
                 You are an AI assistant that generates SQL queries to answer questions. Follow these steps:\n
                 1. Analyze the user's query and determine the necessary SQL query to retrieve the required information.\n
                 2. Generate a safe and efficient SQL SELECT query based on the database schema provided in `<db_schema>`. Ensure the query is a SELECT statement and does not contain any harmful operations like INSERT, UPDATE, DELETE, DROP, or ALTER.\n
-                3. Provide the SQL query in the `sql_query` field of your response.\
+                3. Provide the SQL query in the `sql_query` field of your response. Try to keep a qury simple and avoid using exact match filters if possible. Avoid using `UNION` in sql queries.
                 """
             )
         prompt = f"""
@@ -374,18 +389,29 @@ class Agent:
                 temperature=0.5
             )
             
+            
             results = []
             
             for query in query_list.sql_queries:
-                print(f"Generated SQL query: {query}")
+                print(f"{INFO_COLOR}Generated SQL query: {query} {Colors.RESET}")
                 try:
-                    query_results = httpx.get(f"http://127.0.0.1:{int(os.getenv('MCP_PORT', 1234))}/api/database/query", params={"query": query})
-                    results.append(
-                        {
-                            "query": query,
-                            "results": query_results.json().get("results", []),
-                        }
-                    )
+                    if 'UNION' in query:
+                        for clean_query in self.split_union_query(query):
+                            query_results = httpx.get(f"http://127.0.0.1:{int(os.getenv('MCP_PORT', 1234))}/api/database/query", params={"query": clean_query})
+                            results.append(
+                                {
+                                    "query": clean_query,
+                                    "results": query_results.json().get("results", []),
+                                }
+                            )    
+                    else:
+                        query_results = httpx.get(f"http://127.0.0.1:{int(os.getenv('MCP_PORT', 1234))}/api/database/query", params={"query": query})
+                        results.append(
+                            {
+                                "query": query,
+                                "results": query_results.json().get("results", []),
+                            }
+                        )
                 except Exception as e:
                     results.append(
                         {
@@ -395,7 +421,7 @@ class Agent:
                     )  
                     
             prompt = f"""
-            You need to answer the user's original query based on the results of the executed SQL queries.
+            You need to answer the user's original query based on the results of the executed SQL queries. If an error happened during query execution, include that information in `any_more_info_needed` field to request different query in the next iteration (include your original query, mark the error and how it should be properly requested).
             <user_query>{intent.enhanced_query}</user_query>
             
             <sql_results>
@@ -410,16 +436,18 @@ class Agent:
                 pydantic_model=ResponseWithRetrieval,
                 temperature=0.7)
             
-            thread.history.append(AgentMessage(sender="agent", content=response.answer))
             
-            agent_response = AgentResponse(answer=response.answer)
+            queries_used = [RetrievedDocument(id="SQL", name=f"{query}")  for query in query_list.sql_queries]
+            
+            thread.history.append(AgentMessage(sender="agent", content=response.answer, follow_up=iteration!=0, retrieved_docs=queries_used))
+            
+            agent_response = AgentResponse(answer=response.answer, follow_up=iteration!=0, retrieved_docs=queries_used)
             yield agent_response.model_dump_json()
-            
             if response.any_more_info_needed and iterate:
                 yield AgentResponse(answer="<internal>" + response.any_more_info_needed).model_dump_json()
                 # thread.history.append(AgentMessage(sender="agent", content=response.any_more_info_needed))
                 yield from self.query_with_db_explorer(
-                    thread_id=thread_id, 
+                    thread=thread, 
                     user_input=response.any_more_info_needed,
                     iteration=iteration + 1)
                     
@@ -440,3 +468,33 @@ class Agent:
             thread.history.append(AgentMessage(sender="agent", content=response.answer))
             yield AgentResponse(answer=response.answer).model_dump_json()
         self.thread_store.save_thread(thread)
+        
+    def split_union_query(self, sql_query: str) -> List[str]:
+        """
+        Splits a single SQL query string containing UNION or UNION ALL 
+        into a list of individual SELECT queries.
+
+        This function is case-insensitive and handles variable whitespace.
+
+        Args:
+            sql_query: The full SQL query string.
+
+        Returns:
+            A list of the individual SELECT query strings, with whitespace trimmed.
+        """
+        if not sql_query:
+            return []
+
+        # Regex to split on "UNION" or "UNION ALL", surrounded by whitespace.
+        # re.IGNORECASE makes the split case-insensitive (e.g., matches 'union', 'Union').
+        # The pattern looks for 'UNION' optionally followed by ' ALL', surrounded by spaces.
+        pattern = r'\s+UNION(?:\s+ALL)?\s+'
+        
+        # Split the query based on the pattern
+        queries = re.split(pattern, sql_query.strip(), flags=re.IGNORECASE)
+        
+        # Clean up any potential empty strings and strip each query
+        # This handles queries that might start/end with UNION or have multiple UNIONs in a row
+        cleaned_queries = [q.strip() for q in queries if q.strip()]
+        
+        return cleaned_queries

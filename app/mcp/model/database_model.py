@@ -65,3 +65,29 @@ class DatabaseModel:
         except Exception as e:
             print(f"Error listing tables: {e}")
             return None
+            
+    def get_table_columns(self) -> Optional[dict]:
+        if not self.conn:
+            print("Not connected to the database.")
+            return None
+        try:
+            with self.conn.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT table_name, column_name, data_type
+                    FROM information_schema.columns
+                    WHERE table_schema = 'public'
+                    ORDER BY table_name, ordinal_position;
+                    """
+                )
+                results = cursor.fetchall()
+                table_columns = {}
+                for row in results:
+                    table_name, column_name, data_type = row
+                    if table_name not in table_columns:
+                        table_columns[table_name] = []
+                    table_columns[table_name].append({"column_name": column_name, "data_type": data_type})
+                return table_columns
+        except Exception as e:
+            print(f"Error getting table columns: {e}")
+            return None

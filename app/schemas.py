@@ -165,7 +165,7 @@ class LLamaMessageHistory(BaseModel):
     
 
 class DataBaseQueryList(BaseModel):
-    sql_queries: List[str] = Field(description="The list of SQL queries to be executed on the database.")
+    sql_queries: List[str] = Field(description="The list of SQL queries to be executed on the database. Avoid using `UNION` in sql queries.")
     
 class DataBaseIntentAnalysis(BaseModel):
     enhanced_query: str = Field(description="The context-enrichen, rewritten query with a lot of details.")
