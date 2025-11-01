@@ -26,7 +26,7 @@ const [searchTerm, setSearchTerm] = useState('');
       return;
     }
     try {
-        const response = await axios.get('http://127.0.0.1:8000/api/documents');
+        const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/api/documents`);
         const allDocs = response.data || [];
         const threadDocIds = new Set(currentThread.document_ids || []);
         setThreadFiles(allDocs.filter(doc => threadDocIds.has(doc.id)));
